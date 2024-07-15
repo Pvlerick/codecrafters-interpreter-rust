@@ -75,16 +75,17 @@ fn tokenize(content: String) -> Vec<Token> {
                 '=' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
                     tokens.push(Token::new(EqualEqual, "==", line_number))
                 }
+                '=' => tokens.push(Token::new(Equal, "=", line_number)),
                 '!' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
                     tokens.push(Token::new(BangEqual, "!=", line_number))
                 }
+                '!' => tokens.push(Token::new(Bang, "!", line_number)),
                 '<' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
                     tokens.push(Token::new(LessEqual, "<=", line_number))
                 }
                 '>' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
                     tokens.push(Token::new(GreaterEqual, ">=", line_number))
                 }
-                '=' => tokens.push(Token::new(Equal, "=", line_number)),
                 ' ' => {}
                 _ => tokens.push(Token::new(Unknown, c.to_string(), line_number)),
             }
@@ -142,6 +143,7 @@ enum TokenType {
     Star,
     Equal,
     EqualEqual,
+    Bang,
     BangEqual,
     LessEqual,
     GreaterEqual,
@@ -163,6 +165,7 @@ impl Display for TokenType {
             TokenType::Star => write!(f, "STAR"),
             TokenType::Equal => write!(f, "EQUAL"),
             TokenType::EqualEqual => write!(f, "EQUAL_EQUAL"),
+            TokenType::Bang => write!(f, "BANG"),
             TokenType::BangEqual => write!(f, "BANG_EQUAL"),
             TokenType::LessEqual => write!(f, "LESS_EQUAL"),
             TokenType::GreaterEqual => write!(f, "GREATER_EQUAL"),
