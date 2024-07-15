@@ -16,8 +16,6 @@ fn main() {
 
     match command.as_str() {
         "tokenize" => {
-            writeln!(io::stderr(), "Logs from your program will appear here!").unwrap();
-
             let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
                 writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
                 String::new()
@@ -59,7 +57,8 @@ fn tokenize(content: String) -> Vec<Token> {
                 '+' => tokens.push(Token::new(TokenType::Plus, lexeme, line_number)),
                 ';' => tokens.push(Token::new(TokenType::Semicolon, lexeme, line_number)),
                 '*' => tokens.push(Token::new(TokenType::Star, lexeme, line_number)),
-                _ => {}
+                ' ' => {}
+                _ => tokens.push(Token::new(TokenType::Unknown, lexeme, line_number)),
             }
         }
     }
@@ -88,12 +87,20 @@ impl Token {
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} null", self.token_type, self.lexeme)
+        match self.token_type {
+            TokenType::Unknown => write!(
+                f,
+                "[line {}] Error: Unexpected character: {}",
+                self.line, self.lexeme
+            ),
+            _ => write!(f, "{} {} null", self.token_type, self.lexeme),
+        }
     }
 }
 
 #[derive(Debug)]
 enum TokenType {
+    Unknown,
     LeftParenthesis,
     RightParenthesis,
     LeftBrace,
@@ -109,6 +116,7 @@ enum TokenType {
 impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
+            TokenType::Unknown => Ok(()),
             TokenType::LeftParenthesis => write!(f, "LEFT_PAREN"),
             TokenType::RightParenthesis => write!(f, "RIGHT_PAREN"),
             TokenType::LeftBrace => write!(f, "LEFT_BRACE"),
