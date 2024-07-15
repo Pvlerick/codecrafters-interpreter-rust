@@ -51,10 +51,10 @@ fn tokenize(content: String) -> Vec<Token> {
                 .map(|&i| i as u8)
                 .collect::<Vec<_>>();
             match c {
-                '(' => tokens.push(Token::left_par(lexeme, line_number)),
-                ')' => tokens.push(Token::right_par(lexeme, line_number)),
-                '{' => tokens.push(Token::left_brace(lexeme, line_number)),
-                '}' => tokens.push(Token::right_brace(lexeme, line_number)),
+                '(' => tokens.push(Token::new(TokenType::LeftParenthesis, lexeme, line_number)),
+                ')' => tokens.push(Token::new(TokenType::RightParenthesis, lexeme, line_number)),
+                '{' => tokens.push(Token::new(TokenType::LeftBrace, lexeme, line_number)),
+                '}' => tokens.push(Token::new(TokenType::RightBrace, lexeme, line_number)),
                 _ => {}
             }
         }
@@ -72,36 +72,9 @@ struct Token {
 }
 
 impl Token {
-    fn left_par(lexeme: Vec<u8>, line: usize) -> Token {
+    fn new(token_type: TokenType, lexeme: Vec<u8>, line: usize) -> Self {
         Token {
-            token_type: TokenType::LeftParenthesis,
-            lexeme: String::from_utf8(lexeme).unwrap(),
-            literal: None,
-            line,
-        }
-    }
-
-    fn right_par(lexeme: Vec<u8>, line: usize) -> Token {
-        Token {
-            token_type: TokenType::RightParenthesis,
-            lexeme: String::from_utf8(lexeme).unwrap(),
-            literal: None,
-            line,
-        }
-    }
-
-    fn left_brace(lexeme: Vec<u8>, line: usize) -> Token {
-        Token {
-            token_type: TokenType::LeftBrace,
-            lexeme: String::from_utf8(lexeme).unwrap(),
-            literal: None,
-            line,
-        }
-    }
-
-    fn right_brace(lexeme: Vec<u8>, line: usize) -> Token {
-        Token {
-            token_type: TokenType::RightBrace,
+            token_type,
             lexeme: String::from_utf8(lexeme).unwrap(),
             literal: None,
             line,
