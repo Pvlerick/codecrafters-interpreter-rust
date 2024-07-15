@@ -22,13 +22,15 @@ fn main() {
             });
 
             let mut has_error = false;
+
             if !file_contents.is_empty() {
                 for token in tokenize(file_contents) {
-                    if token.token_type == TokenType::Unknown {
-                        has_error = true;
-                        eprintln!("{}", token);
-                    } else {
-                        println!("{}", token);
+                    match token.token_type {
+                        TokenType::Unknown => {
+                            has_error = true;
+                            eprintln!("{}", token);
+                        }
+                        _ => println!("{}", token),
                     }
                 }
             }
@@ -108,7 +110,7 @@ impl Display for Token {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 enum TokenType {
     Unknown,
     LeftParenthesis,
