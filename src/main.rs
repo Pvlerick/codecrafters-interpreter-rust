@@ -53,6 +53,8 @@ fn tokenize(content: String) -> Vec<Token> {
             match c {
                 '(' => tokens.push(Token::left_par(lexeme, line_number)),
                 ')' => tokens.push(Token::right_par(lexeme, line_number)),
+                '{' => tokens.push(Token::left_brace(lexeme, line_number)),
+                '}' => tokens.push(Token::right_brace(lexeme, line_number)),
                 _ => {}
             }
         }
@@ -87,6 +89,24 @@ impl Token {
             line,
         }
     }
+
+    fn left_brace(lexeme: Vec<u8>, line: usize) -> Token {
+        Token {
+            token_type: TokenType::LeftBrace,
+            lexeme: String::from_utf8(lexeme).unwrap(),
+            literal: None,
+            line,
+        }
+    }
+
+    fn right_brace(lexeme: Vec<u8>, line: usize) -> Token {
+        Token {
+            token_type: TokenType::RightBrace,
+            lexeme: String::from_utf8(lexeme).unwrap(),
+            literal: None,
+            line,
+        }
+    }
 }
 
 impl Display for Token {
@@ -99,6 +119,8 @@ impl Display for Token {
 enum TokenType {
     LeftParenthesis,
     RightParenthesis,
+    LeftBrace,
+    RightBrace,
 }
 
 impl Display for TokenType {
@@ -106,6 +128,8 @@ impl Display for TokenType {
         match &self {
             TokenType::LeftParenthesis => write!(f, "LEFT_PAREN"),
             TokenType::RightParenthesis => write!(f, "RIGHT_PAREN"),
+            TokenType::LeftBrace => write!(f, "LEFT_BRACE"),
+            TokenType::RightBrace => write!(f, "RIGHT_BRACE"),
         }
     }
 }
