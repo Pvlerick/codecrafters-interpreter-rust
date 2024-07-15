@@ -89,10 +89,10 @@ fn tokenize(content: String) -> Vec<Token> {
                 }
                 '>' => tokens.push(Token::new(Greater, ">", line_number)),
                 '/' if chars_iterator.next_if_eq(&&'/').is_some() => {
-                    while chars_iterator.next_if(|&&i| i != '\n').is_some() {}
+                    break;
                 }
                 '/' => tokens.push(Token::new(Slash, "/", line_number)),
-                ' ' => {}
+                ' ' | '\n' | '\r' | '\t' => {}
                 _ => tokens.push(Token::new(Unknown, c.to_string(), line_number)),
             }
 
