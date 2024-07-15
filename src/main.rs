@@ -52,27 +52,44 @@ fn tokenize(content: String) -> Vec<Token> {
     let mut tokens = Vec::new();
 
     for (line_number, line_content) in content.lines().enumerate() {
-        let chars = line_content.chars().collect::<Vec<_>>();
         let line_number = line_number + 1;
-        for (char_position, c) in chars.iter().enumerate() {
-            let lexeme = chars[char_position..char_position + c.len_utf8()]
-                .iter()
-                .map(|&i| i as u8)
-                .collect::<Vec<_>>();
+        let chars = line_content.chars().collect::<Vec<_>>();
+        let mut chars_iterator = chars.iter().peekable();
+        let mut item = chars_iterator.next();
+
+        while item.is_some() {
+            let c = item.unwrap();
+
+            use TokenType::*;
             match c {
-                '(' => tokens.push(Token::new(TokenType::LeftParenthesis, lexeme, line_number)),
-                ')' => tokens.push(Token::new(TokenType::RightParenthesis, lexeme, line_number)),
-                '{' => tokens.push(Token::new(TokenType::LeftBrace, lexeme, line_number)),
-                '}' => tokens.push(Token::new(TokenType::RightBrace, lexeme, line_number)),
-                ',' => tokens.push(Token::new(TokenType::Comma, lexeme, line_number)),
-                '.' => tokens.push(Token::new(TokenType::Dot, lexeme, line_number)),
-                '-' => tokens.push(Token::new(TokenType::Minus, lexeme, line_number)),
-                '+' => tokens.push(Token::new(TokenType::Plus, lexeme, line_number)),
-                ';' => tokens.push(Token::new(TokenType::Semicolon, lexeme, line_number)),
-                '*' => tokens.push(Token::new(TokenType::Star, lexeme, line_number)),
+                '(' => tokens.push(Token::new(LeftParenthesis, "(", line_number)),
+                ')' => tokens.push(Token::new(RightParenthesis, ")", line_number)),
+                '{' => tokens.push(Token::new(LeftBrace, "{", line_number)),
+                '}' => tokens.push(Token::new(RightBrace, "}", line_number)),
+                ',' => tokens.push(Token::new(Comma, ",", line_number)),
+                '.' => tokens.push(Token::new(Dot, ".", line_number)),
+                '-' => tokens.push(Token::new(Minus, "-", line_number)),
+                '+' => tokens.push(Token::new(Plus, "+", line_number)),
+                ';' => tokens.push(Token::new(Semicolon, ";", line_number)),
+                '*' => tokens.push(Token::new(Star, "*", line_number)),
+                '=' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
+                    tokens.push(Token::new(EqualEqual, "==", line_number))
+                }
+                '!' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
+                    tokens.push(Token::new(BangEqual, "!=", line_number))
+                }
+                '<' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
+                    tokens.push(Token::new(LessEqual, "<=", line_number))
+                }
+                '>' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
+                    tokens.push(Token::new(GreaterEqual, ">=", line_number))
+                }
+                '=' => tokens.push(Token::new(Equal, "=", line_number)),
                 ' ' => {}
-                _ => tokens.push(Token::new(TokenType::Unknown, lexeme, line_number)),
+                _ => tokens.push(Token::new(Unknown, "", line_number)),
             }
+
+            item = chars_iterator.next();
         }
     }
 
@@ -87,10 +104,10 @@ struct Token {
 }
 
 impl Token {
-    fn new(token_type: TokenType, lexeme: Vec<u8>, line: usize) -> Self {
+    fn new<S: AsRef<str>>(token_type: TokenType, lexeme: S, line: usize) -> Self {
         Token {
             token_type,
-            lexeme: String::from_utf8(lexeme).unwrap(),
+            lexeme: lexeme.as_ref().to_string(),
             _literal: None,
             line,
         }
@@ -123,6 +140,11 @@ enum TokenType {
     Plus,
     Semicolon,
     Star,
+    Equal,
+    EqualEqual,
+    BangEqual,
+    LessEqual,
+    GreaterEqual,
 }
 
 impl Display for TokenType {
@@ -139,6 +161,11 @@ impl Display for TokenType {
             TokenType::Plus => write!(f, "PLUS"),
             TokenType::Semicolon => write!(f, "SEMICOLON"),
             TokenType::Star => write!(f, "STAR"),
+            TokenType::Equal => write!(f, "EQUAL"),
+            TokenType::EqualEqual => write!(f, "EQUAL_EQUAL"),
+            TokenType::BangEqual => write!(f, "BANG_EQUAL"),
+            TokenType::LessEqual => write!(f, "LESS_EQUAL"),
+            TokenType::GreaterEqual => write!(f, "GREATER_EQUAL"),
         }
     }
 }
