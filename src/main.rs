@@ -72,22 +72,23 @@ fn tokenize(content: String) -> Vec<Token> {
                 '+' => tokens.push(Token::new(Plus, "+", line_number)),
                 ';' => tokens.push(Token::new(Semicolon, ";", line_number)),
                 '*' => tokens.push(Token::new(Star, "*", line_number)),
-                '=' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
+                '=' if chars_iterator.next_if_eq(&&'=').is_some() => {
                     tokens.push(Token::new(EqualEqual, "==", line_number))
                 }
                 '=' => tokens.push(Token::new(Equal, "=", line_number)),
-                '!' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
+                '!' if chars_iterator.next_if_eq(&&'=').is_some() => {
                     tokens.push(Token::new(BangEqual, "!=", line_number))
                 }
                 '!' => tokens.push(Token::new(Bang, "!", line_number)),
-                '<' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
+                '<' if chars_iterator.next_if_eq(&&'=').is_some() => {
                     tokens.push(Token::new(LessEqual, "<=", line_number))
                 }
                 '<' => tokens.push(Token::new(Less, "<", line_number)),
-                '>' if chars_iterator.next_if(|&&i| i == '=').is_some() => {
+                '>' if chars_iterator.next_if_eq(&&'=').is_some() => {
                     tokens.push(Token::new(GreaterEqual, ">=", line_number))
                 }
                 '>' => tokens.push(Token::new(Greater, ">", line_number)),
+                '/' => tokens.push(Token::new(Slash, "/", line_number)),
                 ' ' => {}
                 _ => tokens.push(Token::new(Unknown, c.to_string(), line_number)),
             }
@@ -151,6 +152,7 @@ enum TokenType {
     LessEqual,
     Greater,
     GreaterEqual,
+    Slash,
 }
 
 impl Display for TokenType {
@@ -175,6 +177,7 @@ impl Display for TokenType {
             TokenType::Less => write!(f, "LESS"),
             TokenType::Greater => write!(f, "GREATER"),
             TokenType::GreaterEqual => write!(f, "GREATER_EQUAL"),
+            TokenType::Slash => write!(f, "SLASH"),
         }
     }
 }
