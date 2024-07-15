@@ -55,6 +55,12 @@ fn tokenize(content: String) -> Vec<Token> {
                 ')' => tokens.push(Token::new(TokenType::RightParenthesis, lexeme, line_number)),
                 '{' => tokens.push(Token::new(TokenType::LeftBrace, lexeme, line_number)),
                 '}' => tokens.push(Token::new(TokenType::RightBrace, lexeme, line_number)),
+                ',' => tokens.push(Token::new(TokenType::Comma, lexeme, line_number)),
+                '.' => tokens.push(Token::new(TokenType::Dot, lexeme, line_number)),
+                '-' => tokens.push(Token::new(TokenType::Minus, lexeme, line_number)),
+                '+' => tokens.push(Token::new(TokenType::Plus, lexeme, line_number)),
+                ';' => tokens.push(Token::new(TokenType::Semicolon, lexeme, line_number)),
+                '*' => tokens.push(Token::new(TokenType::Star, lexeme, line_number)),
                 _ => {}
             }
         }
@@ -94,6 +100,12 @@ enum TokenType {
     RightParenthesis,
     LeftBrace,
     RightBrace,
+    Comma,
+    Dot,
+    Minus,
+    Plus,
+    Semicolon,
+    Star,
 }
 
 impl Display for TokenType {
@@ -103,6 +115,12 @@ impl Display for TokenType {
             TokenType::RightParenthesis => write!(f, "RIGHT_PAREN"),
             TokenType::LeftBrace => write!(f, "LEFT_BRACE"),
             TokenType::RightBrace => write!(f, "RIGHT_BRACE"),
+            TokenType::Comma => write!(f, "COMMA"),
+            TokenType::Dot => write!(f, "DOT"),
+            TokenType::Minus => write!(f, "MINUS"),
+            TokenType::Plus => write!(f, "PLUS"),
+            TokenType::Semicolon => write!(f, "SEMICOLON"),
+            TokenType::Star => write!(f, "STAR"),
         }
     }
 }
