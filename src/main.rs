@@ -16,8 +16,6 @@ fn main() {
 
     match command.as_str() {
         "tokenize" => {
-            writeln!(io::stderr(), "Logs from your program will appear here!").unwrap();
-
             let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
                 writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
                 String::new()
@@ -52,6 +50,7 @@ fn tokenize(content: String) -> Vec<Token> {
 
     for (line_number, line_content) in content.lines().enumerate() {
         let chars = line_content.chars().collect::<Vec<_>>();
+        let line_number = line_number + 1;
         for (char_position, c) in chars.iter().enumerate() {
             let lexeme = chars[char_position..char_position + c.len_utf8()]
                 .iter()
