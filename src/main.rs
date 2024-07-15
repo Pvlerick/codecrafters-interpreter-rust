@@ -21,13 +21,22 @@ fn main() {
                 String::new()
             });
 
+            let mut has_error = false;
             if !file_contents.is_empty() {
                 for token in tokenize(file_contents) {
+                    if token.token_type == TokenType::Unknown {
+                        has_error = true;
+                    }
+
                     println!("{}", token);
                 }
             }
 
             println!("EOF  null");
+
+            if has_error {
+                std::process::exit(65);
+            }
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
@@ -66,11 +75,10 @@ fn tokenize(content: String) -> Vec<Token> {
     tokens
 }
 
-#[derive(Debug)]
 struct Token {
     token_type: TokenType,
     lexeme: String,
-    literal: Option<String>,
+    _literal: Option<String>,
     line: usize,
 }
 
@@ -79,7 +87,7 @@ impl Token {
         Token {
             token_type,
             lexeme: String::from_utf8(lexeme).unwrap(),
-            literal: None,
+            _literal: None,
             line,
         }
     }
@@ -98,7 +106,7 @@ impl Display for Token {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum TokenType {
     Unknown,
     LeftParenthesis,
