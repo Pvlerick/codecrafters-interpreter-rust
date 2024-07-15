@@ -16,7 +16,6 @@ fn main() {
 
     match command.as_str() {
         "tokenize" => {
-            // You can use print statements as follows for debugging, they'll be visible when running tests.
             writeln!(io::stderr(), "Logs from your program will appear here!").unwrap();
 
             let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
@@ -28,10 +27,9 @@ fn main() {
                 for token in tokenize(file_contents) {
                     println!("{}", token);
                 }
-                println!("EOF  null");
-            } else {
-                println!("EOF  null");
             }
+
+            println!("EOF  null");
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
