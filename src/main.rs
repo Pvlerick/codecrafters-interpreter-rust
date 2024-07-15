@@ -86,7 +86,7 @@ fn tokenize(content: String) -> Vec<Token> {
                 }
                 '=' => tokens.push(Token::new(Equal, "=", line_number)),
                 ' ' => {}
-                _ => tokens.push(Token::new(Unknown, "", line_number)),
+                u => tokens.push(Token::new(Unknown, u.to_string(), line_number)),
             }
 
             item = chars_iterator.next();
