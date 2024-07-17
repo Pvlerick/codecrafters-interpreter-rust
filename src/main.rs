@@ -2,6 +2,8 @@ use std::env;
 use std::fmt::Display;
 use std::fs;
 use std::io::{self, Write};
+use std::iter::Peekable;
+use std::str::Chars;
 use std::usize;
 
 fn main() {
@@ -17,111 +19,174 @@ fn main() {
     match command.as_str() {
         "tokenize" => {
             let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
+                eprintln!("Failed to read file {}", filename);
                 String::new()
             });
 
-            let mut has_error = false;
-
             if !file_contents.is_empty() {
-                for token in tokenize(file_contents) {
-                    match token.token_type {
-                        TokenType::Unknown => {
-                            has_error = true;
-                            eprintln!("{}", token);
-                        }
-                        _ => println!("{}", token),
-                    }
+                let content = file_contents.leak();
+
+                let has_errors = tokenize(content);
+
+                if has_errors {
+                    std::process::exit(65);
                 }
             }
-
-            println!("EOF  null");
-
-            if has_error {
-                std::process::exit(65);
-            }
         }
+        "repl_tokenize" => loop {
+            print!("> ");
+            io::stdout().flush().expect("cannot flush stdout");
+
+            let mut buf = String::new();
+            let _ = io::stdin()
+                .read_line(&mut buf)
+                .expect("cannot read REPL line");
+
+            let _ = tokenize(buf.leak());
+        },
         _ => {
-            writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
-            return;
+            eprintln!("Unknown command: {}", command);
+            std::process::exit(64);
         }
     }
 }
 
-fn tokenize(content: String) -> Vec<Token> {
-    let mut tokens = Vec::new();
+fn tokenize<'a>(content: &'a str) -> bool {
+    let mut has_errors = false;
+    let scanner = Scanner::new(content);
 
-    for (line_number, line_content) in content.lines().enumerate() {
-        let line_number = line_number + 1;
-        let chars = line_content.chars().collect::<Vec<_>>();
-        let mut chars_iterator = chars.iter().peekable();
-        let mut item = chars_iterator.next();
+    let tokens = scanner.scan_tokens().collect::<Vec<Token<'a>>>();
 
-        while item.is_some() {
-            let c = item.unwrap();
+    for token in tokens {
+        match token.token_type {
+            TokenType::Unknown => {
+                has_errors = true;
+                eprintln!("{}", token);
+            }
+            _ => println!("{}", token),
+        }
+    }
 
-            use TokenType::*;
-            match c {
-                '(' => tokens.push(Token::new(LeftParenthesis, "(", line_number)),
-                ')' => tokens.push(Token::new(RightParenthesis, ")", line_number)),
-                '{' => tokens.push(Token::new(LeftBrace, "{", line_number)),
-                '}' => tokens.push(Token::new(RightBrace, "}", line_number)),
-                ',' => tokens.push(Token::new(Comma, ",", line_number)),
-                '.' => tokens.push(Token::new(Dot, ".", line_number)),
-                '-' => tokens.push(Token::new(Minus, "-", line_number)),
-                '+' => tokens.push(Token::new(Plus, "+", line_number)),
-                ';' => tokens.push(Token::new(Semicolon, ";", line_number)),
-                '*' => tokens.push(Token::new(Star, "*", line_number)),
-                '=' if chars_iterator.next_if_eq(&&'=').is_some() => {
-                    tokens.push(Token::new(EqualEqual, "==", line_number))
-                }
-                '=' => tokens.push(Token::new(Equal, "=", line_number)),
-                '!' if chars_iterator.next_if_eq(&&'=').is_some() => {
-                    tokens.push(Token::new(BangEqual, "!=", line_number))
-                }
-                '!' => tokens.push(Token::new(Bang, "!", line_number)),
-                '<' if chars_iterator.next_if_eq(&&'=').is_some() => {
-                    tokens.push(Token::new(LessEqual, "<=", line_number))
-                }
-                '<' => tokens.push(Token::new(Less, "<", line_number)),
-                '>' if chars_iterator.next_if_eq(&&'=').is_some() => {
-                    tokens.push(Token::new(GreaterEqual, ">=", line_number))
-                }
-                '>' => tokens.push(Token::new(Greater, ">", line_number)),
-                '/' if chars_iterator.next_if_eq(&&'/').is_some() => {
-                    break;
-                }
-                '/' => tokens.push(Token::new(Slash, "/", line_number)),
-                ' ' | '\n' | '\r' | '\t' => {}
-                _ => tokens.push(Token::new(Unknown, c.to_string(), line_number)),
+    has_errors
+}
+
+struct Scanner<'a> {
+    content: &'a str,
+}
+
+impl<'a> Scanner<'a> {
+    fn new(content: &'a str) -> Self {
+        Scanner { content }
+    }
+
+    fn scan_tokens(&self) -> impl Iterator<Item = Token<'a>> {
+        TokensIterator::new(self.content)
+    }
+}
+
+struct TokensIterator<'a> {
+    content: Peekable<Chars<'a>>,
+    line: usize,
+    is_in_string: bool,
+    is_in_line_comment: bool,
+    has_reached_eof: bool,
+}
+
+impl<'a> TokensIterator<'a> {
+    fn new(content: &'a str) -> Self {
+        TokensIterator {
+            content: content.chars().peekable(),
+            line: 1,
+            is_in_string: false,
+            is_in_line_comment: false,
+            has_reached_eof: false,
+        }
+    }
+}
+
+impl<'a> Iterator for TokensIterator<'a> {
+    type Item = Token<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use TokenType::*;
+
+        if self.has_reached_eof {
+            return None;
+        }
+
+        loop {
+            let c = self.content.next();
+
+            if c.is_none() {
+                self.has_reached_eof = true;
+                return Some(Token::new(EOF, "", self.line));
             }
 
-            item = chars_iterator.next();
+            let c = c.unwrap();
+
+            match c {
+                '(' => return Some(Token::new(LeftParenthesis, "(", self.line)),
+                ')' => return Some(Token::new(RightParenthesis, ")", self.line)),
+                '{' => return Some(Token::new(LeftBrace, "{", self.line)),
+                '}' => return Some(Token::new(RightBrace, "}", self.line)),
+                ',' => return Some(Token::new(Comma, ",", self.line)),
+                '.' => return Some(Token::new(Dot, ".", self.line)),
+                '-' => return Some(Token::new(Minus, "-", self.line)),
+                '+' => return Some(Token::new(Plus, "+", self.line)),
+                ';' => return Some(Token::new(Semicolon, ";", self.line)),
+                '*' => return Some(Token::new(Star, "*", self.line)),
+                '=' if self.content.next_if_eq(&&'=').is_some() => {
+                    return Some(Token::new(EqualEqual, "==", self.line))
+                }
+                '=' => return Some(Token::new(Equal, "=", self.line)),
+                '!' if self.content.next_if_eq(&&'=').is_some() => {
+                    return Some(Token::new(BangEqual, "!=", self.line))
+                }
+                '!' => return Some(Token::new(Bang, "!", self.line)),
+                '<' if self.content.next_if_eq(&&'=').is_some() => {
+                    return Some(Token::new(LessEqual, "<=", self.line))
+                }
+                '<' => return Some(Token::new(Less, "<", self.line)),
+                '>' if self.content.next_if_eq(&&'=').is_some() => {
+                    return Some(Token::new(GreaterEqual, ">=", self.line))
+                }
+                '>' => return Some(Token::new(Greater, ">", self.line)),
+                '/' if self.content.next_if_eq(&&'/').is_some() => {
+                    self.is_in_line_comment = true;
+                }
+                '/' => return Some(Token::new(Slash, "/", self.line)),
+                '\n' => {
+                    self.is_in_line_comment = false;
+                    self.line += 1;
+                }
+                ' ' | '\r' | '\t' => {}
+                _ => {
+                    return Some(Token::new(Unknown, c.to_string().leak(), self.line));
+                }
+            }
         }
     }
-
-    tokens
 }
 
-struct Token {
+struct Token<'a> {
     token_type: TokenType,
-    lexeme: String,
-    _literal: Option<String>,
+    lexeme: &'a str,
+    _literal: Option<&'a str>,
     line: usize,
 }
 
-impl Token {
-    fn new<S: AsRef<str>>(token_type: TokenType, lexeme: S, line: usize) -> Self {
+impl<'a> Token<'a> {
+    fn new(token_type: TokenType, lexeme: &'a str, line: usize) -> Self {
         Token {
             token_type,
-            lexeme: lexeme.as_ref().to_string(),
+            lexeme,
             _literal: None,
             line,
         }
     }
 }
 
-impl Display for Token {
+impl Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.token_type {
             TokenType::Unknown => write!(
@@ -137,6 +202,7 @@ impl Display for Token {
 #[derive(PartialEq)]
 enum TokenType {
     Unknown,
+    EOF,
     LeftParenthesis,
     RightParenthesis,
     LeftBrace,
@@ -162,6 +228,7 @@ impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
             TokenType::Unknown => Ok(()),
+            TokenType::EOF => write!(f, "EOF"),
             TokenType::LeftParenthesis => write!(f, "LEFT_PAREN"),
             TokenType::RightParenthesis => write!(f, "RIGHT_PAREN"),
             TokenType::LeftBrace => write!(f, "LEFT_BRACE"),
