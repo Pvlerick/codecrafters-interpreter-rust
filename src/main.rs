@@ -86,6 +86,7 @@ impl<'a> Scanner<'a> {
 
 struct TokensIterator<'a> {
     content: Peekable<Chars<'a>>,
+    position: usize,
     line: usize,
     is_in_string: bool,
     is_in_line_comment: bool,
@@ -96,12 +97,15 @@ impl<'a> TokensIterator<'a> {
     fn new(content: &'a str) -> Self {
         TokensIterator {
             content: content.chars().peekable(),
+            position: 1,
             line: 1,
             is_in_string: false,
             is_in_line_comment: false,
             has_reached_eof: false,
         }
     }
+
+    fn advance_until_after(&mut self, c: char) {}
 }
 
 impl<'a> Iterator for TokensIterator<'a> {
@@ -120,6 +124,11 @@ impl<'a> Iterator for TokensIterator<'a> {
             if c.is_none() {
                 self.has_reached_eof = true;
                 return Some(Token::new(EOF, "", self.line));
+            }
+
+            if self.is_in_line_comment {
+                self.advance_until_after('\n');
+                self.is_in_line_comment = false;
             }
 
             let c = c.unwrap();
