@@ -8,16 +8,17 @@ use std::usize;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        writeln!(io::stderr(), "Usage: {} tokenize <filename>", args[0]).unwrap();
-        return;
-    }
 
-    let command = &args[1];
-    let filename = &args[2];
+    let command = args.get(1).and_then(|i| Some(i.as_str()));
 
-    match command.as_str() {
-        "tokenize" => {
+    match command {
+        Some("tokenize") => {
+            if args.len() < 3 {
+                writeln!(io::stderr(), "Usage: {} tokenize <filename>", args[0]).unwrap();
+                return;
+            }
+
+            let filename = &args[2];
             let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
                 eprintln!("Failed to read file {}", filename);
                 String::new()
@@ -33,7 +34,7 @@ fn main() {
                 }
             }
         }
-        "repl_tokenize" => loop {
+        None => loop {
             print!("> ");
             io::stdout().flush().expect("cannot flush stdout");
 
@@ -42,9 +43,9 @@ fn main() {
                 .read_line(&mut buf)
                 .expect("cannot read REPL line");
 
-            let _ = tokenize(buf.leak());
+            let _ = tokenize(&buf);
         },
-        _ => {
+        Some(command) => {
             eprintln!("Unknown command: {}", command);
             std::process::exit(64);
         }
