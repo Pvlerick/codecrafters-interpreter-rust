@@ -12,39 +12,15 @@ fn main() {
     let command = args.get(1).and_then(|i| Some(i.as_str()));
 
     match command {
+        None => run_prompt(),
         Some("tokenize") => {
             if args.len() < 3 {
-                writeln!(io::stderr(), "Usage: {} tokenize <filename>", args[0]).unwrap();
+                writeln!(io::stderr(), "Usage: {} tokenize <file_path>", args[0]).unwrap();
                 return;
             }
 
-            let filename = &args[2];
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                eprintln!("Failed to read file {}", filename);
-                String::new()
-            });
-
-            if !file_contents.is_empty() {
-                let content = file_contents.leak();
-
-                let has_errors = tokenize(content);
-
-                if has_errors {
-                    std::process::exit(65);
-                }
-            }
+            run_file(&args[2]);
         }
-        None => loop {
-            print!("> ");
-            io::stdout().flush().expect("cannot flush stdout");
-
-            let mut buf = String::new();
-            let _ = io::stdin()
-                .read_line(&mut buf)
-                .expect("cannot read REPL line");
-
-            let _ = tokenize(&buf);
-        },
         Some(command) => {
             eprintln!("Unknown command: {}", command);
             std::process::exit(64);
@@ -52,19 +28,52 @@ fn main() {
     }
 }
 
+fn run_file(file_path: &str) {
+    let file_contents = fs::read_to_string(file_path).unwrap_or_else(|_| {
+        eprintln!("Failed to read file {}", file_path);
+        String::new()
+    });
+
+    if !file_contents.is_empty() {
+        let content = file_contents.leak();
+
+        let has_errors = tokenize(content);
+
+        if has_errors {
+            std::process::exit(65);
+        }
+    }
+}
+
+fn run_prompt() {
+    loop {
+        print!("> ");
+        io::stdout().flush().expect("cannot flush stdout");
+
+        let mut buf = String::new();
+        let _ = io::stdin()
+            .read_line(&mut buf)
+            .expect("cannot read REPL line");
+
+        let _ = tokenize(&buf);
+    }
+}
+
 fn tokenize<'a>(content: &'a str) -> bool {
     let mut has_errors = false;
     let scanner = Scanner::new(content);
 
-    let tokens = scanner.scan_tokens().collect::<Vec<Token<'a>>>();
+    let tokens = scanner
+        .scan_tokens()
+        .collect::<Vec<Result<Token<'a>, String>>>();
 
     for token in tokens {
-        match token.token_type {
-            TokenType::Unknown => {
+        match token {
+            Ok(token) => println!("{}", token),
+            Err(message) => {
                 has_errors = true;
-                eprintln!("{}", token);
+                eprintln!("{}", message);
             }
-            _ => println!("{}", token),
         }
     }
 
@@ -80,7 +89,7 @@ impl<'a> Scanner<'a> {
         Scanner { content }
     }
 
-    fn scan_tokens(&self) -> impl Iterator<Item = Token<'a>> {
+    fn scan_tokens(&self) -> impl Iterator<Item = Result<Token<'a>, String>> {
         TokensIterator::new(self.content)
     }
 }
@@ -110,7 +119,7 @@ impl<'a> TokensIterator<'a> {
 }
 
 impl<'a> Iterator for TokensIterator<'a> {
-    type Item = Token<'a>;
+    type Item = Result<Token<'a>, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
         use TokenType::*;
@@ -124,7 +133,7 @@ impl<'a> Iterator for TokensIterator<'a> {
 
             if c.is_none() {
                 self.has_reached_eof = true;
-                return Some(Token::new(EOF, "", self.line));
+                return Some(Ok(Token::new(EOF, "", self.line)));
             }
 
             if self.is_in_line_comment {
@@ -135,43 +144,46 @@ impl<'a> Iterator for TokensIterator<'a> {
             let c = c.unwrap();
 
             match c {
-                '(' => return Some(Token::new(LeftParenthesis, "(", self.line)),
-                ')' => return Some(Token::new(RightParenthesis, ")", self.line)),
-                '{' => return Some(Token::new(LeftBrace, "{", self.line)),
-                '}' => return Some(Token::new(RightBrace, "}", self.line)),
-                ',' => return Some(Token::new(Comma, ",", self.line)),
-                '.' => return Some(Token::new(Dot, ".", self.line)),
-                '-' => return Some(Token::new(Minus, "-", self.line)),
-                '+' => return Some(Token::new(Plus, "+", self.line)),
-                ';' => return Some(Token::new(Semicolon, ";", self.line)),
-                '*' => return Some(Token::new(Star, "*", self.line)),
+                '(' => return Some(Ok(Token::new(LeftParenthesis, "(", self.line))),
+                ')' => return Some(Ok(Token::new(RightParenthesis, ")", self.line))),
+                '{' => return Some(Ok(Token::new(LeftBrace, "{", self.line))),
+                '}' => return Some(Ok(Token::new(RightBrace, "}", self.line))),
+                ',' => return Some(Ok(Token::new(Comma, ",", self.line))),
+                '.' => return Some(Ok(Token::new(Dot, ".", self.line))),
+                '-' => return Some(Ok(Token::new(Minus, "-", self.line))),
+                '+' => return Some(Ok(Token::new(Plus, "+", self.line))),
+                ';' => return Some(Ok(Token::new(Semicolon, ";", self.line))),
+                '*' => return Some(Ok(Token::new(Star, "*", self.line))),
                 '=' if self.content.next_if_eq(&&'=').is_some() => {
-                    return Some(Token::new(EqualEqual, "==", self.line))
+                    return Some(Ok(Token::new(EqualEqual, "==", self.line)))
                 }
-                '=' => return Some(Token::new(Equal, "=", self.line)),
+                '=' => return Some(Ok(Token::new(Equal, "=", self.line))),
                 '!' if self.content.next_if_eq(&&'=').is_some() => {
-                    return Some(Token::new(BangEqual, "!=", self.line))
+                    return Some(Ok(Token::new(BangEqual, "!=", self.line)))
                 }
-                '!' => return Some(Token::new(Bang, "!", self.line)),
+                '!' => return Some(Ok(Token::new(Bang, "!", self.line))),
                 '<' if self.content.next_if_eq(&&'=').is_some() => {
-                    return Some(Token::new(LessEqual, "<=", self.line))
+                    return Some(Ok(Token::new(LessEqual, "<=", self.line)))
                 }
-                '<' => return Some(Token::new(Less, "<", self.line)),
+                '<' => return Some(Ok(Token::new(Less, "<", self.line))),
                 '>' if self.content.next_if_eq(&&'=').is_some() => {
-                    return Some(Token::new(GreaterEqual, ">=", self.line))
+                    return Some(Ok(Token::new(GreaterEqual, ">=", self.line)))
                 }
-                '>' => return Some(Token::new(Greater, ">", self.line)),
+                '>' => return Some(Ok(Token::new(Greater, ">", self.line))),
                 '/' if self.content.next_if_eq(&&'/').is_some() => {
                     self.is_in_line_comment = true;
                 }
-                '/' => return Some(Token::new(Slash, "/", self.line)),
+                '/' => return Some(Ok(Token::new(Slash, "/", self.line))),
                 '\n' => {
                     self.is_in_line_comment = false;
                     self.line += 1;
                 }
                 ' ' | '\r' | '\t' => {}
                 _ => {
-                    return Some(Token::new(Unknown, c.to_string().leak(), self.line));
+                    return Some(Err(format!(
+                        "[line {}] Error: Unexpected character: {}",
+                        self.line, c
+                    )))
                 }
             }
         }
@@ -198,20 +210,18 @@ impl<'a> Token<'a> {
 
 impl Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.token_type {
-            TokenType::Unknown => write!(
-                f,
-                "[line {}] Error: Unexpected character: {}",
-                self.line, self.lexeme
-            ),
-            _ => write!(f, "{} {} null", self.token_type, self.lexeme),
-        }
+        write!(
+            f,
+            "{} {} {}",
+            self.token_type,
+            self.lexeme,
+            self._literal.unwrap_or("null")
+        )
     }
 }
 
 #[derive(PartialEq)]
 enum TokenType {
-    Unknown,
     EOF,
     LeftParenthesis,
     RightParenthesis,
@@ -237,7 +247,6 @@ enum TokenType {
 impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
-            TokenType::Unknown => Ok(()),
             TokenType::EOF => write!(f, "EOF"),
             TokenType::LeftParenthesis => write!(f, "LEFT_PAREN"),
             TokenType::RightParenthesis => write!(f, "RIGHT_PAREN"),
