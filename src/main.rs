@@ -212,7 +212,12 @@ impl<'a> Iterator for TokensIterator<'a> {
                         match item {
                             Some(c) if c != '"' => end += 1,
                             Some(_) => break,
-                            None => return Some(Err("Unterminated string".to_string())),
+                            None => {
+                                return Some(Err(format!(
+                                    "[line {}] Error: Unterminated string",
+                                    self.line
+                                )))
+                            }
                         }
                     }
                     return Some(Ok(Token::with_literal(
