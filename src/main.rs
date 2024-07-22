@@ -2,7 +2,7 @@ use std::env;
 use std::fmt::Display;
 use std::fs;
 use std::io::{self, Write};
-use std::iter::Peekable;
+use std::iter::{Enumerate, Peekable};
 use std::str::Chars;
 use std::usize;
 
@@ -95,27 +95,62 @@ impl<'a> Scanner<'a> {
 }
 
 struct TokensIterator<'a> {
-    content: Peekable<Chars<'a>>,
+    content: &'a str,
+    content_iterator: Peekable<Chars<'a>>,
     position: usize,
     line: usize,
-    is_in_string: bool,
-    is_in_line_comment: bool,
     has_reached_eof: bool,
 }
 
 impl<'a> TokensIterator<'a> {
     fn new(content: &'a str) -> Self {
         TokensIterator {
-            content: content.chars().peekable(),
-            position: 1,
+            content,
+            content_iterator: content.chars().peekable(),
+            position: 0,
             line: 1,
-            is_in_string: false,
-            is_in_line_comment: false,
             has_reached_eof: false,
         }
     }
 
-    fn advance_until_after(&mut self, c: char) {}
+    fn next(&mut self) -> Option<char> {
+        let item = self.content_iterator.next();
+
+        match item {
+            None => {
+                self.has_reached_eof = true;
+                return None;
+            }
+            Some(c) => {
+                if c == '\n' {
+                    self.line += 1;
+                }
+                self.position += 1;
+                return Some(c);
+            }
+        }
+    }
+
+    fn next_is(&mut self, sought: char) -> bool {
+        match self.content_iterator.peek() {
+            Some(&c) if c == sought => {
+                self.next();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn advance_until(&mut self, stop: char) {
+        loop {
+            let item = self.next();
+            match item {
+                Some(c) if c == stop => return,
+                None => return,
+                _ => {}
+            }
+        }
+    }
 }
 
 impl<'a> Iterator for TokensIterator<'a> {
@@ -129,21 +164,16 @@ impl<'a> Iterator for TokensIterator<'a> {
         }
 
         loop {
-            let c = self.content.next();
+            let item = self.next();
 
-            if c.is_none() {
+            if item.is_none() {
                 self.has_reached_eof = true;
                 return Some(Ok(Token::new(EOF, "", self.line)));
             }
 
-            if self.is_in_line_comment {
-                self.advance_until_after('\n');
-                self.is_in_line_comment = false;
-            }
+            let character = item.unwrap();
 
-            let c = c.unwrap();
-
-            match c {
+            match character {
                 '(' => return Some(Ok(Token::new(LeftParenthesis, "(", self.line))),
                 ')' => return Some(Ok(Token::new(RightParenthesis, ")", self.line))),
                 '{' => return Some(Ok(Token::new(LeftBrace, "{", self.line))),
@@ -154,35 +184,46 @@ impl<'a> Iterator for TokensIterator<'a> {
                 '+' => return Some(Ok(Token::new(Plus, "+", self.line))),
                 ';' => return Some(Ok(Token::new(Semicolon, ";", self.line))),
                 '*' => return Some(Ok(Token::new(Star, "*", self.line))),
-                '=' if self.content.next_if_eq(&&'=').is_some() => {
+                '=' if self.next_is('=') => {
                     return Some(Ok(Token::new(EqualEqual, "==", self.line)))
                 }
                 '=' => return Some(Ok(Token::new(Equal, "=", self.line))),
-                '!' if self.content.next_if_eq(&&'=').is_some() => {
+                '!' if self.next_is('=') => {
                     return Some(Ok(Token::new(BangEqual, "!=", self.line)))
                 }
                 '!' => return Some(Ok(Token::new(Bang, "!", self.line))),
-                '<' if self.content.next_if_eq(&&'=').is_some() => {
+                '<' if self.next_is('=') => {
                     return Some(Ok(Token::new(LessEqual, "<=", self.line)))
                 }
                 '<' => return Some(Ok(Token::new(Less, "<", self.line))),
-                '>' if self.content.next_if_eq(&&'=').is_some() => {
+                '>' if self.next_is('=') => {
                     return Some(Ok(Token::new(GreaterEqual, ">=", self.line)))
                 }
                 '>' => return Some(Ok(Token::new(Greater, ">", self.line))),
-                '/' if self.content.next_if_eq(&&'/').is_some() => {
-                    self.is_in_line_comment = true;
+                '/' if self.next_is('/') => {
+                    self.advance_until('\n');
                 }
                 '/' => return Some(Ok(Token::new(Slash, "/", self.line))),
+                '"' => {
+                    let start = self.position;
+                    let mut end = self.position;
+                    loop {
+                        let item = self.next();
+                        match item {
+                            Some(c) if c != '"' => end += 1,
+                            _ => break,
+                        }
+                    }
+                    return Some(Ok(Token::new(String, &self.content[start..end], self.line)));
+                }
                 '\n' => {
-                    self.is_in_line_comment = false;
                     self.line += 1;
                 }
                 ' ' | '\r' | '\t' => {}
                 _ => {
                     return Some(Err(format!(
                         "[line {}] Error: Unexpected character: {}",
-                        self.line, c
+                        self.line, character
                     )))
                 }
             }
@@ -242,6 +283,7 @@ enum TokenType {
     Greater,
     GreaterEqual,
     Slash,
+    String,
 }
 
 impl Display for TokenType {
@@ -267,6 +309,7 @@ impl Display for TokenType {
             TokenType::Greater => write!(f, "GREATER"),
             TokenType::GreaterEqual => write!(f, "GREATER_EQUAL"),
             TokenType::Slash => write!(f, "SLASH"),
+            TokenType::String => write!(f, "STRING"),
         }
     }
 }
