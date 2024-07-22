@@ -214,7 +214,12 @@ impl<'a> Iterator for TokensIterator<'a> {
                             _ => break,
                         }
                     }
-                    return Some(Ok(Token::new(String, &self.content[start..end], self.line)));
+                    return Some(Ok(Token::with_literal(
+                        String,
+                        &self.content[start - 1..=end],
+                        &self.content[start..end],
+                        self.line,
+                    )));
                 }
                 '\n' => {
                     self.line += 1;
@@ -234,7 +239,7 @@ impl<'a> Iterator for TokensIterator<'a> {
 struct Token<'a> {
     token_type: TokenType,
     lexeme: &'a str,
-    _literal: Option<&'a str>,
+    literal: Option<&'a str>,
     line: usize,
 }
 
@@ -243,7 +248,16 @@ impl<'a> Token<'a> {
         Token {
             token_type,
             lexeme,
-            _literal: None,
+            literal: None,
+            line,
+        }
+    }
+
+    fn with_literal(token_type: TokenType, lexeme: &'a str, literal: &'a str, line: usize) -> Self {
+        Token {
+            token_type,
+            lexeme,
+            literal: Some(literal),
             line,
         }
     }
@@ -256,7 +270,7 @@ impl Display for Token<'_> {
             "{} {} {}",
             self.token_type,
             self.lexeme,
-            self._literal.unwrap_or("null")
+            self.literal.unwrap_or("null")
         )
     }
 }
