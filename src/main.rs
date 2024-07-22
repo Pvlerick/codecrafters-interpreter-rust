@@ -214,7 +214,7 @@ impl<'a> Iterator for TokensIterator<'a> {
                             Some(_) => break,
                             None => {
                                 return Some(Err(format!(
-                                    "[line {}] Error: Unterminated string",
+                                    "[line {}] Error: Unterminated string.",
                                     self.line
                                 )))
                             }
