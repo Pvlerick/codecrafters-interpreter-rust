@@ -168,50 +168,42 @@ impl<'a> Iterator for TokensIterator<'a> {
 
             if item.is_none() {
                 self.has_reached_eof = true;
-                return Some(Ok(Token::new(EOF, "", self.line)));
+                return Some(Ok(Token::new(EOF, "")));
             }
 
             let character = item.unwrap();
 
             match character {
-                '(' => return Some(Ok(Token::new(LeftParenthesis, "(", self.line))),
-                ')' => return Some(Ok(Token::new(RightParenthesis, ")", self.line))),
-                '{' => return Some(Ok(Token::new(LeftBrace, "{", self.line))),
-                '}' => return Some(Ok(Token::new(RightBrace, "}", self.line))),
-                ',' => return Some(Ok(Token::new(Comma, ",", self.line))),
-                '.' => return Some(Ok(Token::new(Dot, ".", self.line))),
-                '-' => return Some(Ok(Token::new(Minus, "-", self.line))),
-                '+' => return Some(Ok(Token::new(Plus, "+", self.line))),
-                ';' => return Some(Ok(Token::new(Semicolon, ";", self.line))),
-                '*' => return Some(Ok(Token::new(Star, "*", self.line))),
-                '=' if self.next_is('=') => {
-                    return Some(Ok(Token::new(EqualEqual, "==", self.line)))
-                }
-                '=' => return Some(Ok(Token::new(Equal, "=", self.line))),
-                '!' if self.next_is('=') => {
-                    return Some(Ok(Token::new(BangEqual, "!=", self.line)))
-                }
-                '!' => return Some(Ok(Token::new(Bang, "!", self.line))),
-                '<' if self.next_is('=') => {
-                    return Some(Ok(Token::new(LessEqual, "<=", self.line)))
-                }
-                '<' => return Some(Ok(Token::new(Less, "<", self.line))),
-                '>' if self.next_is('=') => {
-                    return Some(Ok(Token::new(GreaterEqual, ">=", self.line)))
-                }
-                '>' => return Some(Ok(Token::new(Greater, ">", self.line))),
+                '(' => return Some(Ok(Token::new(LeftParenthesis, "("))),
+                ')' => return Some(Ok(Token::new(RightParenthesis, ")"))),
+                '{' => return Some(Ok(Token::new(LeftBrace, "{"))),
+                '}' => return Some(Ok(Token::new(RightBrace, "}"))),
+                ',' => return Some(Ok(Token::new(Comma, ","))),
+                '.' => return Some(Ok(Token::new(Dot, "."))),
+                '-' => return Some(Ok(Token::new(Minus, "-"))),
+                '+' => return Some(Ok(Token::new(Plus, "+"))),
+                ';' => return Some(Ok(Token::new(Semicolon, ";"))),
+                '*' => return Some(Ok(Token::new(Star, "*"))),
+                '=' if self.next_is('=') => return Some(Ok(Token::new(EqualEqual, "=="))),
+                '=' => return Some(Ok(Token::new(Equal, "="))),
+                '!' if self.next_is('=') => return Some(Ok(Token::new(BangEqual, "!="))),
+                '!' => return Some(Ok(Token::new(Bang, "!"))),
+                '<' if self.next_is('=') => return Some(Ok(Token::new(LessEqual, "<="))),
+                '<' => return Some(Ok(Token::new(Less, "<"))),
+                '>' if self.next_is('=') => return Some(Ok(Token::new(GreaterEqual, ">="))),
+                '>' => return Some(Ok(Token::new(Greater, ">"))),
                 '/' if self.next_is('/') => {
                     self.advance_until('\n');
                 }
-                '/' => return Some(Ok(Token::new(Slash, "/", self.line))),
+                '/' => return Some(Ok(Token::new(Slash, "/"))),
                 '"' => {
                     let start = self.position;
-                    let mut end = self.position;
+                    let mut end = start;
                     loop {
                         let item = self.next();
                         match item {
-                            Some(c) if c != '"' => end += 1,
-                            Some(_) => break,
+                            Some(c) if c == '"' => break,
+                            Some(_) => end += 1,
                             None => {
                                 return Some(Err(format!(
                                     "[line {}] Error: Unterminated string.",
@@ -224,13 +216,9 @@ impl<'a> Iterator for TokensIterator<'a> {
                         String,
                         &self.content[start - 1..=end],
                         &self.content[start..end],
-                        self.line,
                     )));
                 }
-                '\n' => {
-                    self.line += 1;
-                }
-                ' ' | '\r' | '\t' => {}
+                ' ' | '\r' | '\n' | '\t' => {}
                 _ => {
                     return Some(Err(format!(
                         "[line {}] Error: Unexpected character: {}",
@@ -246,25 +234,22 @@ struct Token<'a> {
     token_type: TokenType,
     lexeme: &'a str,
     literal: Option<&'a str>,
-    line: usize,
 }
 
 impl<'a> Token<'a> {
-    fn new(token_type: TokenType, lexeme: &'a str, line: usize) -> Self {
+    fn new(token_type: TokenType, lexeme: &'a str) -> Self {
         Token {
             token_type,
             lexeme,
             literal: None,
-            line,
         }
     }
 
-    fn with_literal(token_type: TokenType, lexeme: &'a str, literal: &'a str, line: usize) -> Self {
+    fn with_literal(token_type: TokenType, lexeme: &'a str, literal: &'a str) -> Self {
         Token {
             token_type,
             lexeme,
             literal: Some(literal),
-            line,
         }
     }
 }
