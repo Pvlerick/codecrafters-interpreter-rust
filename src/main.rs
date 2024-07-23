@@ -34,14 +34,12 @@ fn run_file(file_path: &str) {
         String::new()
     });
 
-    if !file_contents.is_empty() {
-        let content = file_contents.leak();
+    let content = file_contents.leak();
 
-        let has_errors = tokenize(content);
+    let has_errors = tokenize(content);
 
-        if has_errors {
-            std::process::exit(65);
-        }
+    if has_errors {
+        std::process::exit(65);
     }
 }
 
