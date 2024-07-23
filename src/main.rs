@@ -183,7 +183,10 @@ impl<'a> TokensIterator<'a> {
             self.next();
             self.advance_while(|i| i.is_digit(10));
         }
-        let lexeme = &self.content[start_position - 1..self.position];
+        let mut lexeme = &self.content[start_position - 1..self.position];
+        if lexeme.ends_with('.') {
+            lexeme = &lexeme[..lexeme.len() - 1];
+        }
         let value: f64 = lexeme.parse().expect("cannot parse f64");
         return Ok(Token::with_literal(
             TokenType::Number,
