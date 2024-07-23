@@ -143,22 +143,29 @@ impl<'a> TokensIterator<'a> {
         }
     }
 
-    fn advance_until(&mut self, stop: fn(char) -> bool) -> bool {
+    fn advance_while(&mut self, condition: fn(char) -> bool) -> bool {
         loop {
             if self.peek().is_none() {
                 return false;
             }
 
-            if self.next().map_or(false, stop) {
+            if self.peek().is_some_and(|i| !condition(*i)) {
                 return true;
             }
+
+            self.next();
         }
+    }
+
+    fn handle_line_comment(&mut self) {
+        self.advance_while(|i| i != '\n');
     }
 
     fn handle_string(&mut self) -> Result<Token<'a>, String> {
         let start_line = self.line;
         let start_position = self.position;
-        return if self.advance_until(|i| i == '"') {
+        return if self.advance_while(|i| i != '"') {
+            self.next(); // Skip the ending "
             Ok(Token::with_literal(
                 TokenType::String,
                 &self.content[start_position - 1..self.position],
@@ -171,8 +178,12 @@ impl<'a> TokensIterator<'a> {
 
     fn handle_digit(&mut self) -> Result<Token<'a>, String> {
         let start_position = self.position;
-        self.advance_until(|i| !i.is_digit(10) && i != '.');
-        let lexeme = &self.content[start_position - 1..self.position - 1];
+        self.advance_while(|i| i.is_digit(10));
+        if self.peek() == Some(&'.') {
+            self.next();
+            self.advance_while(|i| i.is_digit(10));
+        }
+        let lexeme = &self.content[start_position - 1..self.position];
         let value: f64 = lexeme.parse().expect("cannot parse f64");
         return Ok(Token::with_literal(
             TokenType::Number,
@@ -221,13 +232,11 @@ impl<'a> Iterator for TokensIterator<'a> {
                 '<' => return Some(Ok(Token::new(Less, "<"))),
                 '>' if self.next_is('=') => return Some(Ok(Token::new(GreaterEqual, ">="))),
                 '>' => return Some(Ok(Token::new(Greater, ">"))),
-                '/' if self.next_is('/') => {
-                    self.advance_until(|i| i == '\n');
-                }
+                '/' if self.next_is('/') => self.handle_line_comment(),
                 '/' => return Some(Ok(Token::new(Slash, "/"))),
                 '"' => return Some(self.handle_string()),
-                ' ' | '\r' | '\n' | '\t' => {}
                 c if c.is_digit(10) => return Some(self.handle_digit()),
+                ' ' | '\r' | '\n' | '\t' => {}
                 _ => {
                     return Some(Err(format!(
                         "[line {}] Error: Unexpected character: {}",
