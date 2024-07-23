@@ -131,8 +131,12 @@ impl<'a> TokensIterator<'a> {
         }
     }
 
+    fn peek(&mut self) -> Option<&char> {
+        self.content_iterator.peek()
+    }
+
     fn next_is(&mut self, sought: char) -> bool {
-        match self.content_iterator.peek() {
+        match self.peek() {
             Some(&c) if c == sought => {
                 self.next();
                 true
@@ -142,14 +146,7 @@ impl<'a> TokensIterator<'a> {
     }
 
     fn advance_until(&mut self, stop: char) {
-        loop {
-            let item = self.next();
-            match item {
-                Some(c) if c == stop => return,
-                None => return,
-                _ => {}
-            }
-        }
+        while !self.peek().is_none() && !(self.next() == Some(stop)) {}
     }
 }
 
@@ -197,25 +194,25 @@ impl<'a> Iterator for TokensIterator<'a> {
                 }
                 '/' => return Some(Ok(Token::new(Slash, "/"))),
                 '"' => {
-                    let start = self.position;
-                    let mut end = start;
+                    let start_line = self.line;
+                    let start_position = self.position;
                     loop {
                         let item = self.next();
                         match item {
                             Some(c) if c == '"' => break,
-                            Some(_) => end += 1,
                             None => {
                                 return Some(Err(format!(
                                     "[line {}] Error: Unterminated string.",
-                                    self.line
-                                )))
+                                    start_line
+                                )));
                             }
+                            _ => {}
                         }
                     }
                     return Some(Ok(Token::with_literal(
                         String,
-                        &self.content[start - 1..=end],
-                        &self.content[start..end],
+                        &self.content[start_position - 1..self.position],
+                        &self.content[start_position..self.position - 1],
                     )));
                 }
                 ' ' | '\r' | '\n' | '\t' => {}
