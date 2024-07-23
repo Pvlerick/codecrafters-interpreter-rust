@@ -145,8 +145,16 @@ impl<'a> TokensIterator<'a> {
         }
     }
 
-    fn advance_until(&mut self, stop: char) {
-        while !self.peek().is_none() && !(self.next() == Some(stop)) {}
+    fn advance_until(&mut self, stop: char) -> bool {
+        loop {
+            if self.peek().is_none() {
+                return false;
+            }
+
+            if self.next() == Some(stop) {
+                return true;
+            }
+        }
     }
 }
 
@@ -196,24 +204,18 @@ impl<'a> Iterator for TokensIterator<'a> {
                 '"' => {
                     let start_line = self.line;
                     let start_position = self.position;
-                    loop {
-                        let item = self.next();
-                        match item {
-                            Some(c) if c == '"' => break,
-                            None => {
-                                return Some(Err(format!(
-                                    "[line {}] Error: Unterminated string.",
-                                    start_line
-                                )));
-                            }
-                            _ => {}
-                        }
-                    }
-                    return Some(Ok(Token::with_literal(
-                        String,
-                        &self.content[start_position - 1..self.position],
-                        &self.content[start_position..self.position - 1],
-                    )));
+                    return if self.advance_until('"') {
+                        Some(Ok(Token::with_literal(
+                            String,
+                            &self.content[start_position - 1..self.position],
+                            &self.content[start_position..self.position - 1],
+                        )))
+                    } else {
+                        Some(Err(format!(
+                            "[line {}] Error: Unterminated string.",
+                            start_line
+                        )))
+                    };
                 }
                 ' ' | '\r' | '\n' | '\t' => {}
                 _ => {
