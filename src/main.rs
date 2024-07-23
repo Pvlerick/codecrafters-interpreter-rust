@@ -143,16 +143,42 @@ impl<'a> TokensIterator<'a> {
         }
     }
 
-    fn advance_until(&mut self, stop: char) -> bool {
+    fn advance_until(&mut self, stop: fn(char) -> bool) -> bool {
         loop {
             if self.peek().is_none() {
                 return false;
             }
 
-            if self.next() == Some(stop) {
+            if self.next().map_or(false, stop) {
                 return true;
             }
         }
+    }
+
+    fn handle_string(&mut self) -> Result<Token<'a>, String> {
+        let start_line = self.line;
+        let start_position = self.position;
+        return if self.advance_until(|i| i == '"') {
+            Ok(Token::with_literal(
+                TokenType::String,
+                &self.content[start_position - 1..self.position],
+                Literal::String(&self.content[start_position..self.position - 1]),
+            ))
+        } else {
+            Err(format!("[line {}] Error: Unterminated string.", start_line))
+        };
+    }
+
+    fn handle_digit(&mut self) -> Result<Token<'a>, String> {
+        let start_position = self.position;
+        self.advance_until(|i| !i.is_digit(10) && i != '.');
+        let lexeme = &self.content[start_position - 1..self.position - 1];
+        let value: f64 = lexeme.parse().expect("cannot parse f64");
+        return Ok(Token::with_literal(
+            TokenType::Digit,
+            lexeme,
+            Literal::Digit(value),
+        ));
     }
 }
 
@@ -196,33 +222,19 @@ impl<'a> Iterator for TokensIterator<'a> {
                 '>' if self.next_is('=') => return Some(Ok(Token::new(GreaterEqual, ">="))),
                 '>' => return Some(Ok(Token::new(Greater, ">"))),
                 '/' if self.next_is('/') => {
-                    self.advance_until('\n');
+                    self.advance_until(|i| i == '\n');
                 }
                 '/' => return Some(Ok(Token::new(Slash, "/"))),
-                '"' => {
-                    let start_line = self.line;
-                    let start_position = self.position;
-                    return if self.advance_until('"') {
-                        Some(Ok(Token::with_literal(
-                            String,
-                            &self.content[start_position - 1..self.position],
-                            &self.content[start_position..self.position - 1],
-                        )))
-                    } else {
-                        Some(Err(format!(
-                            "[line {}] Error: Unterminated string.",
-                            start_line
-                        )))
-                    };
-                }
+                '"' => return Some(self.handle_string()),
                 ' ' | '\r' | '\n' | '\t' => {}
+                c if c.is_digit(10) => return Some(self.handle_digit()),
                 _ => {
                     return Some(Err(format!(
                         "[line {}] Error: Unexpected character: {}",
                         self.line, character
                     )))
                 }
-            }
+            };
         }
     }
 }
@@ -230,7 +242,7 @@ impl<'a> Iterator for TokensIterator<'a> {
 struct Token<'a> {
     token_type: TokenType,
     lexeme: &'a str,
-    literal: Option<&'a str>,
+    literal: Option<Literal<'a>>,
 }
 
 impl<'a> Token<'a> {
@@ -242,7 +254,7 @@ impl<'a> Token<'a> {
         }
     }
 
-    fn with_literal(token_type: TokenType, lexeme: &'a str, literal: &'a str) -> Self {
+    fn with_literal(token_type: TokenType, lexeme: &'a str, literal: Literal<'a>) -> Self {
         Token {
             token_type,
             lexeme,
@@ -253,13 +265,12 @@ impl<'a> Token<'a> {
 
 impl Display for Token<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} {} {}",
-            self.token_type,
-            self.lexeme,
-            self.literal.unwrap_or("null")
-        )
+        let literal = self
+            .literal
+            .as_ref()
+            .map_or_else(|| "null".to_string(), |i| format!("{}", i));
+
+        write!(f, "{} {} {}", self.token_type, self.lexeme, literal,)
     }
 }
 
@@ -286,6 +297,7 @@ enum TokenType {
     GreaterEqual,
     Slash,
     String,
+    Digit,
 }
 
 impl Display for TokenType {
@@ -312,6 +324,21 @@ impl Display for TokenType {
             TokenType::GreaterEqual => write!(f, "GREATER_EQUAL"),
             TokenType::Slash => write!(f, "SLASH"),
             TokenType::String => write!(f, "STRING"),
+            TokenType::Digit => write!(f, "DIGIT"),
+        }
+    }
+}
+
+enum Literal<'a> {
+    String(&'a str),
+    Digit(f64),
+}
+
+impl<'a> Display for Literal<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Literal::String(value) => write!(f, "{}", value),
+            Literal::Digit(value) => write!(f, "{}", value),
         }
     }
 }
