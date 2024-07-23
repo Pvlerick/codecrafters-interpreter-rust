@@ -175,7 +175,7 @@ impl<'a> TokensIterator<'a> {
         let lexeme = &self.content[start_position - 1..self.position - 1];
         let value: f64 = lexeme.parse().expect("cannot parse f64");
         return Ok(Token::with_literal(
-            TokenType::Digit,
+            TokenType::Number,
             lexeme,
             Literal::Digit(value),
         ));
@@ -297,7 +297,7 @@ enum TokenType {
     GreaterEqual,
     Slash,
     String,
-    Digit,
+    Number,
 }
 
 impl Display for TokenType {
@@ -324,7 +324,7 @@ impl Display for TokenType {
             TokenType::GreaterEqual => write!(f, "GREATER_EQUAL"),
             TokenType::Slash => write!(f, "SLASH"),
             TokenType::String => write!(f, "STRING"),
-            TokenType::Digit => write!(f, "DIGIT"),
+            TokenType::Number => write!(f, "NUMBER"),
         }
     }
 }
