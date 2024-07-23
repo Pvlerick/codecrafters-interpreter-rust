@@ -2,7 +2,7 @@ use std::env;
 use std::fmt::Display;
 use std::fs;
 use std::io::{self, Write};
-use std::iter::{Enumerate, Peekable};
+use std::iter::Peekable;
 use std::str::Chars;
 use std::usize;
 
