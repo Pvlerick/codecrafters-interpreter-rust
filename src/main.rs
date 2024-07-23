@@ -279,7 +279,7 @@ impl Display for Token<'_> {
             .as_ref()
             .map_or_else(|| "null".to_string(), |i| format!("{}", i));
 
-        write!(f, "{} {} {}", self.token_type, self.lexeme, literal,)
+        write!(f, "{} {} {}", self.token_type, self.lexeme, literal)
     }
 }
 
@@ -347,7 +347,13 @@ impl<'a> Display for Literal<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Literal::String(value) => write!(f, "{}", value),
-            Literal::Digit(value) => write!(f, "{}", value),
+            Literal::Digit(value) => {
+                return if value.fract() == 0.0 {
+                    write!(f, "{}.0", value)
+                } else {
+                    write!(f, "{}", value)
+                };
+            }
         }
     }
 }
