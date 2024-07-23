@@ -1,8 +1,8 @@
+use std::collections::VecDeque;
 use std::env;
 use std::fmt::Display;
 use std::fs;
 use std::io::{self, Write};
-use std::iter::Peekable;
 use std::str::Chars;
 use std::usize;
 
@@ -94,7 +94,8 @@ impl<'a> Scanner<'a> {
 
 struct TokensIterator<'a> {
     content: &'a str,
-    content_iterator: Peekable<Chars<'a>>,
+    content_iterator: Chars<'a>,
+    buffer: VecDeque<Option<char>>,
     position: usize,
     line: usize,
     has_reached_eof: bool,
@@ -102,9 +103,18 @@ struct TokensIterator<'a> {
 
 impl<'a> TokensIterator<'a> {
     fn new(content: &'a str) -> Self {
+        const BUFFER_SIZE: usize = 3;
+
+        let mut content_iterator = content.chars();
+        let mut buffer = VecDeque::with_capacity(BUFFER_SIZE);
+        buffer.push_back(content_iterator.next());
+        buffer.push_back(content_iterator.next());
+        buffer.push_back(content_iterator.next());
+
         TokensIterator {
             content,
-            content_iterator: content.chars().peekable(),
+            content_iterator,
+            buffer,
             position: 0,
             line: 1,
             has_reached_eof: false,
@@ -112,7 +122,7 @@ impl<'a> TokensIterator<'a> {
     }
 
     fn next(&mut self) -> Option<char> {
-        let item = self.content_iterator.next();
+        let item = self.buffer.pop_front().unwrap_or(None);
 
         match item {
             None => {
@@ -124,13 +134,32 @@ impl<'a> TokensIterator<'a> {
                     self.line += 1;
                 }
                 self.position += 1;
+                self.buffer.push_back(self.content_iterator.next());
                 return Some(c);
             }
         }
     }
 
-    fn peek(&mut self) -> Option<&char> {
-        self.content_iterator.peek()
+    fn peek(&self) -> Option<&char> {
+        self.buffer[1].as_ref()
+    }
+
+    fn peek_is(&self, sought: char) -> bool {
+        match self.peek() {
+            Some(&c) if c == sought => true,
+            _ => false,
+        }
+    }
+
+    fn peek_matches(&self, condition: fn(char) -> bool) -> bool {
+        match self.peek() {
+            Some(&c) => condition(c),
+            _ => false,
+        }
+    }
+
+    fn peek_peek(&self) -> Option<&char> {
+        self.buffer[2].as_ref()
     }
 
     fn next_is(&mut self, sought: char) -> bool {
@@ -164,8 +193,7 @@ impl<'a> TokensIterator<'a> {
     fn handle_string(&mut self) -> Result<Token<'a>, String> {
         let start_line = self.line;
         let start_position = self.position;
-        return if self.advance_while(|i| i != '"') {
-            self.next(); // Skip the ending "
+        return if self.advance_while(|i| i != '"') && self.next_is('"') {
             Ok(Token::with_literal(
                 TokenType::String,
                 &self.content[start_position - 1..self.position],
@@ -179,14 +207,10 @@ impl<'a> TokensIterator<'a> {
     fn handle_digit(&mut self) -> Result<Token<'a>, String> {
         let start_position = self.position;
         self.advance_while(|i| i.is_digit(10));
-        if self.peek() == Some(&'.') {
-            self.next();
+        if self.next_is('.') && self.peek_matches(|i| i.is_digit(10)) {
             self.advance_while(|i| i.is_digit(10));
         }
-        let mut lexeme = &self.content[start_position - 1..self.position];
-        if lexeme.ends_with('.') {
-            lexeme = &lexeme[..lexeme.len() - 1];
-        }
+        let lexeme = &self.content[start_position - 1..self.position];
         let value: f64 = lexeme.parse().expect("cannot parse f64");
         return Ok(Token::with_literal(
             TokenType::Number,
