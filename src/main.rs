@@ -222,7 +222,7 @@ impl<'a> TokensIterator<'a> {
 
     fn handle_identifier(&mut self) -> Result<Token<'a>, String> {
         let start_position = self.position;
-        self.advance_while(|i| i.is_alphanumeric());
+        self.advance_while(|i| i.is_alphanumeric() || i == '_');
         let lexeme = &self.content[start_position - 1..self.position];
         return Ok(Token::new(TokenType::Identifier, lexeme));
     }
