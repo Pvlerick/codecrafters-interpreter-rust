@@ -219,6 +219,13 @@ impl<'a> TokensIterator<'a> {
             Literal::Digit(value),
         ));
     }
+
+    fn handle_identifier(&mut self) -> Result<Token<'a>, String> {
+        let start_position = self.position;
+        self.advance_while(|i| i.is_alphanumeric());
+        let lexeme = &self.content[start_position - 1..self.position];
+        return Ok(Token::new(TokenType::Identifier, lexeme));
+    }
 }
 
 impl<'a> Iterator for TokensIterator<'a> {
@@ -265,6 +272,7 @@ impl<'a> Iterator for TokensIterator<'a> {
                 '"' => return Some(self.handle_string()),
                 c if c.is_digit(10) => return Some(self.handle_digit()),
                 ' ' | '\r' | '\n' | '\t' => {}
+                c if c.is_alphanumeric() || c == '_' => return Some(self.handle_identifier()),
                 _ => {
                     return Some(Err(format!(
                         "[line {}] Error: Unexpected character: {}",
@@ -335,6 +343,7 @@ enum TokenType {
     Slash,
     String,
     Number,
+    Identifier,
 }
 
 impl Display for TokenType {
@@ -362,6 +371,7 @@ impl Display for TokenType {
             TokenType::Slash => write!(f, "SLASH"),
             TokenType::String => write!(f, "STRING"),
             TokenType::Number => write!(f, "NUMBER"),
+            TokenType::Identifier => write!(f, "IDENTIFIER"),
         }
     }
 }
