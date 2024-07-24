@@ -198,7 +198,6 @@ impl<'a> TokensIterator<'a> {
         self.advance_while(|i| i.is_digit(10));
         if self.next_is('.') && self.peek_matches(|i| i.is_digit(10)) {
             self.advance_while(|i| i.is_digit(10));
-            self.next();
         }
         let lexeme = &self.content[start_position - 1..self.position];
         let value: f64 = lexeme.parse().expect("cannot parse f64");
