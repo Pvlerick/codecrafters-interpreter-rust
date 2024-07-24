@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::env;
 use std::fmt::Display;
 use std::fs;
@@ -99,11 +99,30 @@ struct TokensIterator<'a> {
     position: usize,
     line: usize,
     has_reached_eof: bool,
+    keywords: HashMap<&'static str, TokenType>,
 }
 
 impl<'a> TokensIterator<'a> {
     fn new(content: &'a str) -> Self {
         const BUFFER_SIZE: usize = 3;
+
+        let mut keywords = HashMap::new();
+        keywords.insert("and", TokenType::And);
+        keywords.insert("class", TokenType::Class);
+        keywords.insert("else", TokenType::Else);
+        keywords.insert("false", TokenType::False);
+        keywords.insert("for", TokenType::For);
+        keywords.insert("fun", TokenType::Fun);
+        keywords.insert("if", TokenType::If);
+        keywords.insert("nil", TokenType::Nil);
+        keywords.insert("or", TokenType::Or);
+        keywords.insert("print", TokenType::Print);
+        keywords.insert("return", TokenType::Return);
+        keywords.insert("super", TokenType::Super);
+        keywords.insert("this", TokenType::This);
+        keywords.insert("true", TokenType::True);
+        keywords.insert("var", TokenType::Var);
+        keywords.insert("while", TokenType::While);
 
         let mut content_iterator = content.chars();
         let mut buffer = VecDeque::with_capacity(BUFFER_SIZE);
@@ -118,6 +137,7 @@ impl<'a> TokensIterator<'a> {
             position: 0,
             line: 1,
             has_reached_eof: false,
+            keywords,
         }
     }
 
@@ -220,11 +240,14 @@ impl<'a> TokensIterator<'a> {
         ));
     }
 
-    fn handle_identifier(&mut self) -> Result<Token<'a>, String> {
+    fn handle_identifier_or_keyword(&mut self) -> Result<Token<'a>, String> {
         let start_position = self.position;
         self.advance_while(|i| i.is_alphanumeric() || i == '_');
         let lexeme = &self.content[start_position - 1..self.position];
-        return Ok(Token::new(TokenType::Identifier, lexeme));
+        return match self.keywords.get(lexeme) {
+            Some(&token_type) => Ok(Token::new(token_type, lexeme)),
+            None => Ok(Token::new(TokenType::Identifier, lexeme)),
+        };
     }
 }
 
@@ -272,7 +295,9 @@ impl<'a> Iterator for TokensIterator<'a> {
                 '"' => return Some(self.handle_string()),
                 c if c.is_digit(10) => return Some(self.handle_digit()),
                 ' ' | '\r' | '\n' | '\t' => {}
-                c if c.is_alphanumeric() || c == '_' => return Some(self.handle_identifier()),
+                c if c.is_alphanumeric() || c == '_' => {
+                    return Some(self.handle_identifier_or_keyword())
+                }
                 _ => {
                     return Some(Err(format!(
                         "[line {}] Error: Unexpected character: {}",
@@ -319,7 +344,7 @@ impl Display for Token<'_> {
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 enum TokenType {
     EOF,
     LeftParenthesis,
@@ -344,6 +369,22 @@ enum TokenType {
     String,
     Number,
     Identifier,
+    And,
+    Class,
+    Else,
+    False,
+    For,
+    Fun,
+    If,
+    Nil,
+    Or,
+    Print,
+    Return,
+    Super,
+    This,
+    True,
+    Var,
+    While,
 }
 
 impl Display for TokenType {
@@ -372,6 +413,22 @@ impl Display for TokenType {
             TokenType::String => write!(f, "STRING"),
             TokenType::Number => write!(f, "NUMBER"),
             TokenType::Identifier => write!(f, "IDENTIFIER"),
+            TokenType::And => write!(f, "AND"),
+            TokenType::Class => write!(f, "CLASS"),
+            TokenType::Else => write!(f, "ELSE"),
+            TokenType::False => write!(f, "FALSE"),
+            TokenType::For => write!(f, "FOR"),
+            TokenType::Fun => write!(f, "FUN"),
+            TokenType::If => write!(f, "IF"),
+            TokenType::Nil => write!(f, "NIL"),
+            TokenType::Or => write!(f, "OR"),
+            TokenType::Print => write!(f, "PRINT"),
+            TokenType::Return => write!(f, "RETURN"),
+            TokenType::Super => write!(f, "SUPER"),
+            TokenType::This => write!(f, "THIS"),
+            TokenType::True => write!(f, "TRUE"),
+            TokenType::Var => write!(f, "VAR"),
+            TokenType::While => write!(f, "WHILE"),
         }
     }
 }
