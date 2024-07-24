@@ -141,14 +141,7 @@ impl<'a> TokensIterator<'a> {
     }
 
     fn peek(&self) -> Option<&char> {
-        self.buffer[1].as_ref()
-    }
-
-    fn peek_is(&self, sought: char) -> bool {
-        match self.peek() {
-            Some(&c) if c == sought => true,
-            _ => false,
-        }
+        self.buffer[0].as_ref()
     }
 
     fn peek_matches(&self, condition: fn(char) -> bool) -> bool {
@@ -158,14 +151,10 @@ impl<'a> TokensIterator<'a> {
         }
     }
 
-    fn peek_peek(&self) -> Option<&char> {
-        self.buffer[2].as_ref()
-    }
-
     fn next_is(&mut self, sought: char) -> bool {
-        match self.peek() {
+        match self.buffer[0].as_ref() {
             Some(&c) if c == sought => {
-                self.next();
+                let _ = self.next();
                 true
             }
             _ => false,
