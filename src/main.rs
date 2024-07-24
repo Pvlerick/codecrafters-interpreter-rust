@@ -144,8 +144,19 @@ impl<'a> TokensIterator<'a> {
         self.buffer[0].as_ref()
     }
 
+    fn peek_peek(&self) -> Option<&char> {
+        self.buffer[1].as_ref()
+    }
+
     fn peek_matches(&self, condition: fn(char) -> bool) -> bool {
         match self.peek() {
+            Some(&c) => condition(c),
+            _ => false,
+        }
+    }
+
+    fn peek_peek_matches(&self, condition: fn(char) -> bool) -> bool {
+        match self.peek_peek() {
             Some(&c) => condition(c),
             _ => false,
         }
@@ -196,7 +207,8 @@ impl<'a> TokensIterator<'a> {
     fn handle_digit(&mut self) -> Result<Token<'a>, String> {
         let start_position = self.position;
         self.advance_while(|i| i.is_digit(10));
-        if self.next_is('.') && self.peek_matches(|i| i.is_digit(10)) {
+        if self.peek_matches(|i| i == '.') && self.peek_peek_matches(|i| i.is_digit(10)) {
+            self.next_is('.');
             self.advance_while(|i| i.is_digit(10));
         }
         let lexeme = &self.content[start_position - 1..self.position];
