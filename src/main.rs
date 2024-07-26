@@ -1,9 +1,9 @@
 use std::collections::{HashMap, VecDeque};
 use std::env;
+use std::error::Error;
 use std::fmt::Display;
-use std::fs;
-use std::io::{self, Write};
-use std::str::Chars;
+use std::fs::File;
+use std::io::{self, BufRead, BufReader, Write};
 use std::usize;
 
 fn main() {
@@ -12,14 +12,22 @@ fn main() {
     let command = args.get(1).and_then(|i| Some(i.as_str()));
 
     match command {
-        None => run_prompt(),
+        None => tokenize_repl(),
         Some("tokenize") => {
             if args.len() < 3 {
                 writeln!(io::stderr(), "Usage: {} tokenize <file_path>", args[0]).unwrap();
                 return;
             }
 
-            run_file(&args[2]);
+            tokenize_file(&args[2]);
+        }
+        Some("parse") => {
+            if args.len() < 3 {
+                writeln!(io::stderr(), "Usage: {} parse <file_path>", args[0]).unwrap();
+                return;
+            }
+
+            parse_file(&args[2]);
         }
         Some(command) => {
             eprintln!("Unknown command: {}", command);
@@ -28,22 +36,28 @@ fn main() {
     }
 }
 
-fn run_file(file_path: &str) {
-    let file_contents = fs::read_to_string(file_path).unwrap_or_else(|_| {
-        eprintln!("Failed to read file {}", file_path);
-        String::new()
-    });
+fn tokenize_file(file_path: &str) {
+    let mut has_errors = false;
 
-    let content = file_contents.leak();
+    let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
-    let has_errors = tokenize(content);
+    let mut scanner = Scanner::new(BufReader::new(file));
+    for item in scanner.scan_tokens().unwrap() {
+        match item {
+            Ok(token) => println!("{}", token),
+            Err(message) => {
+                has_errors = true;
+                eprintln!("{}", message);
+            }
+        }
+    }
 
     if has_errors {
         std::process::exit(65);
     }
 }
 
-fn run_prompt() {
+fn tokenize_repl() {
     loop {
         print!("> ");
         io::stdout().flush().expect("cannot flush stdout");
@@ -53,57 +67,65 @@ fn run_prompt() {
             .read_line(&mut buf)
             .expect("cannot read REPL line");
 
-        let _ = tokenize(&buf);
-    }
-}
-
-fn tokenize<'a>(content: &'a str) -> bool {
-    let mut has_errors = false;
-    let scanner = Scanner::new(content);
-
-    let tokens = scanner
-        .scan_tokens()
-        .collect::<Vec<Result<Token<'a>, String>>>();
-
-    for token in tokens {
-        match token {
-            Ok(token) => println!("{}", token),
-            Err(message) => {
-                has_errors = true;
-                eprintln!("{}", message);
+        let mut scanner = Scanner::new(BufReader::new(buf.leak().as_bytes()));
+        for item in scanner.scan_tokens().unwrap() {
+            match item {
+                Ok(token) => println!("{}", token),
+                Err(message) => {
+                    eprintln!("{}", message);
+                }
             }
         }
     }
-
-    has_errors
 }
 
-struct Scanner<'a> {
-    content: &'a str,
+fn parse_file(file_path: &str) {
+    let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
+
+    let mut scanner = Scanner::new(BufReader::new(file));
+    let _tokens = scanner.scan_tokens();
 }
 
-impl<'a> Scanner<'a> {
-    fn new(content: &'a str) -> Self {
-        Scanner { content }
+struct Scanner<R>
+where
+    R: BufRead + 'static,
+{
+    reader: Option<R>,
+}
+
+impl<R> Scanner<R>
+where
+    R: BufRead + 'static,
+{
+    fn new(reader: R) -> Self {
+        Scanner {
+            reader: Some(reader),
+        }
     }
 
-    fn scan_tokens(&self) -> impl Iterator<Item = Result<Token<'a>, String>> {
-        TokensIterator::new(self.content)
+    fn scan_tokens(
+        &mut self,
+    ) -> Result<impl Iterator<Item = Result<Token, String>>, Box<dyn Error>> {
+        match self.reader.take() {
+            Some(reader) => Ok(TokensIterator::new(reader)),
+            None => Err(format!("Scanner's reader has already been consumed").into()),
+        }
     }
 }
 
 struct TokensIterator<'a> {
-    content: &'a str,
-    content_iterator: Chars<'a>,
-    buffer: VecDeque<Option<char>>,
-    position: usize,
-    line: usize,
     has_reached_eof: bool,
-    keywords: HashMap<&'static str, TokenType>,
+    content: Box<dyn Iterator<Item = char>>,
+    buffer: VecDeque<Option<char>>,
+    line: usize,
+    keywords: HashMap<&'a str, TokenType>,
 }
 
 impl<'a> TokensIterator<'a> {
-    fn new(content: &'a str) -> Self {
+    fn new<R>(reader: R) -> Self
+    where
+        R: BufRead + 'static,
+    {
         const BUFFER_SIZE: usize = 3;
 
         let mut keywords = HashMap::new();
@@ -124,24 +146,32 @@ impl<'a> TokensIterator<'a> {
         keywords.insert("var", TokenType::Var);
         keywords.insert("while", TokenType::While);
 
-        let mut content_iterator = content.chars();
+        let mut content = reader.lines().flat_map(|i| {
+            i.expect("can't read file content")
+                .chars()
+                .chain(Some('\n'))
+                .collect::<Vec<_>>()
+        });
+
         let mut buffer = VecDeque::with_capacity(BUFFER_SIZE);
-        buffer.push_back(content_iterator.next());
-        buffer.push_back(content_iterator.next());
-        buffer.push_back(content_iterator.next());
+        for _ in 0..BUFFER_SIZE {
+            buffer.push_back(content.next());
+        }
 
         TokensIterator {
-            content,
-            content_iterator,
-            buffer,
-            position: 0,
-            line: 1,
             has_reached_eof: false,
+            content: Box::new(content),
+            buffer,
+            line: 1,
             keywords,
         }
     }
 
     fn next(&mut self) -> Option<char> {
+        if self.has_reached_eof {
+            return None;
+        }
+
         let item = self.buffer.pop_front().unwrap_or(None);
 
         match item {
@@ -153,8 +183,7 @@ impl<'a> TokensIterator<'a> {
                 if c == '\n' {
                     self.line += 1;
                 }
-                self.position += 1;
-                self.buffer.push_back(self.content_iterator.next());
+                self.buffer.push_back(self.content.next());
                 return Some(c);
             }
         }
@@ -192,7 +221,7 @@ impl<'a> TokensIterator<'a> {
         }
     }
 
-    fn advance_while(&mut self, condition: fn(char) -> bool) -> bool {
+    fn advance_while(&mut self, condition: fn(char) -> bool, buf: &mut String) -> bool {
         loop {
             if self.peek().is_none() {
                 return false;
@@ -202,57 +231,59 @@ impl<'a> TokensIterator<'a> {
                 return true;
             }
 
-            self.next();
+            match self.next() {
+                Some(c) => buf.push(c),
+                None => {}
+            }
         }
     }
 
     fn handle_line_comment(&mut self) {
-        self.advance_while(|i| i != '\n');
+        self.advance_while(|i| i != '\n', &mut String::new());
     }
 
-    fn handle_string(&mut self) -> Result<Token<'a>, String> {
+    fn handle_string(&mut self) -> Result<Token, String> {
         let start_line = self.line;
-        let start_position = self.position;
-        return if self.advance_while(|i| i != '"') && self.next_is('"') {
-            Ok(Token::with_literal(
+        let mut buf = "\"".to_string();
+        if self.advance_while(|i| i != '"', &mut buf) && self.next_is('"') {
+            buf.push('"');
+            return Ok(Token::with_literal(
                 TokenType::String,
-                &self.content[start_position - 1..self.position],
-                Literal::String(&self.content[start_position..self.position - 1]),
-            ))
+                buf[1..buf.len() - 1].to_string(),
+                Literal::String(buf),
+            ));
         } else {
-            Err(format!("[line {}] Error: Unterminated string.", start_line))
-        };
+            return Err(format!("[line {}] Error: Unterminated string.", start_line));
+        }
     }
 
-    fn handle_digit(&mut self) -> Result<Token<'a>, String> {
-        let start_position = self.position;
-        self.advance_while(|i| i.is_digit(10));
+    fn handle_digit(&mut self, initial_digit: char) -> Result<Token, String> {
+        let mut buf = initial_digit.to_string();
+        self.advance_while(|i| i.is_digit(10), &mut buf);
         if self.peek_matches(|i| i == '.') && self.peek_peek_matches(|i| i.is_digit(10)) {
-            self.next_is('.');
-            self.advance_while(|i| i.is_digit(10));
+            buf.push(self.next().unwrap());
+            self.advance_while(|i| i.is_digit(10), &mut buf);
         }
-        let lexeme = &self.content[start_position - 1..self.position];
-        let value: f64 = lexeme.parse().expect("cannot parse f64");
+        let value: f64 = buf.parse().expect("cannot parse f64");
         return Ok(Token::with_literal(
             TokenType::Number,
-            lexeme,
+            buf,
             Literal::Digit(value),
         ));
     }
 
-    fn handle_identifier_or_keyword(&mut self) -> Result<Token<'a>, String> {
-        let start_position = self.position;
-        self.advance_while(|i| i.is_alphanumeric() || i == '_');
-        let lexeme = &self.content[start_position - 1..self.position];
-        return match self.keywords.get(lexeme) {
-            Some(&token_type) => Ok(Token::new(token_type, lexeme)),
-            None => Ok(Token::new(TokenType::Identifier, lexeme)),
+    fn handle_identifier_or_keyword(&mut self) -> Result<Token, String> {
+        let mut buf = String::new();
+        self.advance_while(|i| i.is_alphanumeric() || i == '_', &mut buf);
+        return match self.keywords.get(buf.as_str()) {
+            Some(&token_type) => Ok(Token::new(token_type, buf)),
+            None => Ok(Token::new(TokenType::Identifier, buf)),
         };
     }
 }
 
 impl<'a> Iterator for TokensIterator<'a> {
-    type Item = Result<Token<'a>, String>;
+    type Item = Result<Token, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
         use TokenType::*;
@@ -293,7 +324,7 @@ impl<'a> Iterator for TokensIterator<'a> {
                 '/' if self.next_is('/') => self.handle_line_comment(),
                 '/' => return Some(Ok(Token::new(Slash, "/"))),
                 '"' => return Some(self.handle_string()),
-                c if c.is_digit(10) => return Some(self.handle_digit()),
+                c if c.is_digit(10) => return Some(self.handle_digit(c)),
                 ' ' | '\r' | '\n' | '\t' => {}
                 c if c.is_alphanumeric() || c == '_' => {
                     return Some(self.handle_identifier_or_keyword())
@@ -309,22 +340,22 @@ impl<'a> Iterator for TokensIterator<'a> {
     }
 }
 
-struct Token<'a> {
+struct Token {
     token_type: TokenType,
-    lexeme: &'a str,
-    literal: Option<Literal<'a>>,
+    lexeme: String,
+    literal: Option<Literal>,
 }
 
-impl<'a> Token<'a> {
-    fn new(token_type: TokenType, lexeme: &'a str) -> Self {
+impl Token {
+    fn new<S: ToString>(token_type: TokenType, lexeme: S) -> Self {
         Token {
             token_type,
-            lexeme,
+            lexeme: lexeme.to_string(),
             literal: None,
         }
     }
 
-    fn with_literal(token_type: TokenType, lexeme: &'a str, literal: Literal<'a>) -> Self {
+    fn with_literal(token_type: TokenType, lexeme: String, literal: Literal) -> Self {
         Token {
             token_type,
             lexeme,
@@ -333,7 +364,7 @@ impl<'a> Token<'a> {
     }
 }
 
-impl Display for Token<'_> {
+impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let literal = self
             .literal
@@ -433,12 +464,12 @@ impl Display for TokenType {
     }
 }
 
-enum Literal<'a> {
-    String(&'a str),
+enum Literal {
+    String(String),
     Digit(f64),
 }
 
-impl<'a> Display for Literal<'a> {
+impl Display for Literal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Literal::String(value) => write!(f, "{}", value),
