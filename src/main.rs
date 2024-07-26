@@ -2,8 +2,10 @@ use std::env;
 use std::fs::File;
 use std::io::{self, BufReader, Write};
 
+use parser::Parser;
 use scanner::Scanner;
 
+pub mod parser;
 pub mod scanner;
 
 fn main() {
@@ -83,5 +85,6 @@ fn parse_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
     let mut scanner = Scanner::new(BufReader::new(file));
-    let _tokens = scanner.scan_tokens();
+    let parser = Parser::new();
+    parser.parse(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
 }

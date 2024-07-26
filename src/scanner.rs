@@ -267,7 +267,7 @@ pub struct Token {
 }
 
 impl Token {
-    fn new<S: ToString>(token_type: TokenType, lexeme: S) -> Self {
+    pub fn new<S: ToString>(token_type: TokenType, lexeme: S) -> Self {
         Token {
             token_type,
             lexeme: lexeme.to_string(),
@@ -281,6 +281,12 @@ impl Token {
             lexeme,
             literal: Some(literal),
         }
+    }
+
+    pub fn display(&self) -> String {
+        self.literal
+            .as_ref()
+            .map_or_else(|| self.lexeme.to_string(), |i| i.to_string())
     }
 }
 
