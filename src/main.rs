@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::env;
 use std::error::Error;
 use std::fmt::Display;
@@ -113,38 +113,38 @@ where
     }
 }
 
-struct TokensIterator<'a> {
+struct TokensIterator {
     has_reached_eof: bool,
     content: Box<dyn Iterator<Item = char>>,
     buffer: VecDeque<Option<char>>,
     line: usize,
-    keywords: HashMap<&'a str, TokenType>,
 }
 
-impl<'a> TokensIterator<'a> {
+static KEYWORDS: &[(&str, TokenType)] = &[
+    ("and", TokenType::And),
+    ("class", TokenType::Class),
+    ("else", TokenType::Else),
+    ("false", TokenType::False),
+    ("for", TokenType::For),
+    ("fun", TokenType::Fun),
+    ("if", TokenType::If),
+    ("nil", TokenType::Nil),
+    ("or", TokenType::Or),
+    ("print", TokenType::Print),
+    ("return", TokenType::Return),
+    ("super", TokenType::Super),
+    ("this", TokenType::This),
+    ("true", TokenType::True),
+    ("var", TokenType::Var),
+    ("while", TokenType::While),
+];
+
+impl TokensIterator {
     fn new<R>(reader: R) -> Self
     where
         R: BufRead + 'static,
     {
         const BUFFER_SIZE: usize = 3;
-
-        let mut keywords = HashMap::new();
-        keywords.insert("and", TokenType::And);
-        keywords.insert("class", TokenType::Class);
-        keywords.insert("else", TokenType::Else);
-        keywords.insert("false", TokenType::False);
-        keywords.insert("for", TokenType::For);
-        keywords.insert("fun", TokenType::Fun);
-        keywords.insert("if", TokenType::If);
-        keywords.insert("nil", TokenType::Nil);
-        keywords.insert("or", TokenType::Or);
-        keywords.insert("print", TokenType::Print);
-        keywords.insert("return", TokenType::Return);
-        keywords.insert("super", TokenType::Super);
-        keywords.insert("this", TokenType::This);
-        keywords.insert("true", TokenType::True);
-        keywords.insert("var", TokenType::Var);
-        keywords.insert("while", TokenType::While);
 
         let mut content = reader.lines().flat_map(|i| {
             i.expect("can't read file content")
@@ -163,7 +163,6 @@ impl<'a> TokensIterator<'a> {
             content: Box::new(content),
             buffer,
             line: 1,
-            keywords,
         }
     }
 
@@ -275,14 +274,21 @@ impl<'a> TokensIterator<'a> {
     fn handle_identifier_or_keyword(&mut self) -> Result<Token, String> {
         let mut buf = String::new();
         self.advance_while(|i| i.is_alphanumeric() || i == '_', &mut buf);
-        return match self.keywords.get(buf.as_str()) {
-            Some(&token_type) => Ok(Token::new(token_type, buf)),
+        return match TokensIterator::k(buf.as_str()) {
+            Some(token_type) => Ok(Token::new(token_type, buf)),
             None => Ok(Token::new(TokenType::Identifier, buf)),
         };
     }
+
+    fn k(identifier: &str) -> Option<TokenType> {
+        KEYWORDS
+            .binary_search_by(|(k, _)| k.cmp(&identifier))
+            .map(|i| KEYWORDS[i].1)
+            .ok()
+    }
 }
 
-impl<'a> Iterator for TokensIterator<'a> {
+impl Iterator for TokensIterator {
     type Item = Result<Token, String>;
 
     fn next(&mut self) -> Option<Self::Item> {
