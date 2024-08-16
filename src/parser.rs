@@ -1,28 +1,117 @@
-use std::fmt::Display;
+use std::{fmt::Display, iter::Peekable};
 
 use crate::scanner::{Token, TokenType};
 
-pub struct Parser {}
+/* Grammar:
 
-impl Parser {
-    pub fn new() -> Self {
-        Parser {}
+expression     → equality ;
+equality       → comparison ( ( "!=" | "==" ) comparison )* ;
+comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term           → factor ( ( "-" | "+" ) factor )* ;
+factor         → unary ( ( "/" | "*" ) unary )* ;
+unary          → ( "!" | "-" ) unary
+               | primary ;
+primary        → NUMBER | STRING | "true" | "false" | "nil"
+               | "(" expression ")" ;
+*/
+
+pub struct Parser<T>
+where
+    T: Iterator<Item = Token>,
+{
+    tokens: Peekable<T>,
+}
+
+macro_rules! gramar_rule {
+    ($name:ident, $base:ident, $($token_type:expr),+) => {
+        fn $name(&mut self) -> Expr {
+            let mut token_types = Vec::new();
+            $(
+                token_types.push($token_type);
+            )+
+            let mut expr = self.$base();
+
+            while let Some(operator) = self.next_matches(&token_types) {
+                let right = self.$base();
+                expr = Expr::binary(operator, expr, right);
+            }
+
+            expr
+        }
+    };
+}
+
+impl<T> Parser<T>
+where
+    T: Iterator<Item = Token>,
+{
+    pub fn new(tokens: T) -> Self {
+        let tokens = tokens.peekable();
+        Parser { tokens }
     }
 
-    pub fn parse<T>(&self, tokens: T)
-    where
-        T: Iterator<Item = Token>,
-    {
-        let x = Expr::binary(
-            Token::new(TokenType::Star, "*"),
-            Expr::unary(
-                Token::new(TokenType::Minus, "-"),
-                Expr::literal(Token::new(TokenType::Number, "123")),
-            ),
-            Expr::grouping(Expr::Literal(Token::new(TokenType::Number, "4567"))),
-        );
+    pub fn parse(&mut self) {
+        let x = self.expression();
 
-        println!("expr: {}", x);
+        println!("{}", x);
+    }
+
+    pub fn expression(&mut self) -> Expr {
+        self.equality()
+    }
+
+    gramar_rule!(
+        equality,
+        comparison,
+        TokenType::BangEqual,
+        TokenType::EqualEqual
+    );
+    gramar_rule!(
+        comparison,
+        term,
+        TokenType::Greater,
+        TokenType::GreaterEqual,
+        TokenType::Less,
+        TokenType::LessEqual
+    );
+    gramar_rule!(term, factor, TokenType::Minus, TokenType::Plus);
+    gramar_rule!(factor, unary, TokenType::Slash, TokenType::Star);
+
+    fn unary(&mut self) -> Expr {
+        use TokenType::*;
+        if let Some(operator) = self.next_matches(&vec![Bang, Minus]) {
+            let right = self.unary();
+            return Expr::unary(operator, right);
+        }
+
+        self.primary()
+    }
+
+    fn primary(&mut self) -> Expr {
+        if let Some(token) = self.tokens.next() {
+            use TokenType::*;
+            match token.token_type {
+                False | True | Nil | Number | String => return Expr::literal(token),
+                LeftParenthesis => {
+                    let expr = self.expression();
+                    if let Some(_) = self.next_matches(&vec![RightParenthesis]) {
+                        return Expr::grouping(expr);
+                    } else {
+                        panic!("booom");
+                    }
+                }
+                tt => {
+                    println!("eeeef: {}", tt);
+                    panic!("eeeeeef");
+                }
+            }
+        } else {
+            Expr::literal(Token::new(TokenType::EOF, ""))
+        }
+    }
+
+    fn next_matches(&mut self, types: &Vec<TokenType>) -> Option<Token> {
+        self.tokens.next_if(|i| types.contains(&i.token_type))
     }
 }
 
@@ -62,4 +151,3 @@ impl Display for Expr {
         }
     }
 }
-

@@ -85,6 +85,6 @@ fn parse_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
     let mut scanner = Scanner::new(BufReader::new(file));
-    let parser = Parser::new();
-    parser.parse(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
+    parser.parse();
 }
