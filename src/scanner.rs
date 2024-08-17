@@ -185,8 +185,8 @@ impl TokensIterator {
         ));
     }
 
-    fn handle_identifier_or_keyword(&mut self) -> Result<Token, String> {
-        let mut buf = String::new();
+    fn handle_identifier_or_keyword(&mut self, initial_digit: char) -> Result<Token, String> {
+        let mut buf = initial_digit.to_string();
         self.advance_while(|i| i.is_alphanumeric() || i == '_', &mut buf);
         return match TokensIterator::is_keyword(buf.as_str()) {
             Some(token_type) => Ok(Token::new(token_type, buf)),
@@ -247,7 +247,7 @@ impl Iterator for TokensIterator {
                 c if c.is_digit(10) => return Some(self.handle_digit(c)),
                 ' ' | '\r' | '\n' | '\t' => {}
                 c if c.is_alphanumeric() || c == '_' => {
-                    return Some(self.handle_identifier_or_keyword())
+                    return Some(self.handle_identifier_or_keyword(c))
                 }
                 _ => {
                     return Some(Err(format!(
