@@ -188,13 +188,13 @@ impl TokensIterator {
     fn handle_identifier_or_keyword(&mut self) -> Result<Token, String> {
         let mut buf = String::new();
         self.advance_while(|i| i.is_alphanumeric() || i == '_', &mut buf);
-        return match TokensIterator::k(buf.as_str()) {
+        return match TokensIterator::is_keyword(buf.as_str()) {
             Some(token_type) => Ok(Token::new(token_type, buf)),
             None => Ok(Token::new(TokenType::Identifier, buf)),
         };
     }
 
-    fn k(identifier: &str) -> Option<TokenType> {
+    fn is_keyword(identifier: &str) -> Option<TokenType> {
         KEYWORDS
             .binary_search_by(|(k, _)| k.cmp(&identifier))
             .map(|i| KEYWORDS[i].1)
@@ -260,6 +260,7 @@ impl Iterator for TokensIterator {
     }
 }
 
+#[derive(Debug)]
 pub struct Token {
     pub token_type: TokenType,
     lexeme: String,
@@ -301,7 +302,7 @@ impl Display for Token {
     }
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TokenType {
     EOF,
     LeftParenthesis,
@@ -390,6 +391,7 @@ impl Display for TokenType {
     }
 }
 
+#[derive(Debug)]
 enum Literal {
     String(String),
     Digit(f64),
