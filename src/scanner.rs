@@ -260,11 +260,11 @@ impl Iterator for TokensIterator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Token {
     pub token_type: TokenType,
-    lexeme: String,
-    literal: Option<Literal>,
+    pub lexeme: String,
+    pub literal: Option<Literal>,
 }
 
 impl Token {
@@ -276,7 +276,7 @@ impl Token {
         }
     }
 
-    fn with_literal(token_type: TokenType, lexeme: String, literal: Literal) -> Self {
+    pub fn with_literal(token_type: TokenType, lexeme: String, literal: Literal) -> Self {
         Token {
             token_type,
             lexeme,
@@ -299,6 +299,17 @@ impl Display for Token {
             .map_or_else(|| "null".to_string(), |i| format!("{}", i));
 
         write!(f, "{} {} {}", self.token_type, self.lexeme, literal)
+    }
+}
+// TODO Test only cfg
+// impl PartialEq<(TokenType, &str, &str)> for Token {
+//     fn eq(&self, other: &(TokenType, &str, Option<&str>)) -> bool {
+//         self.token_type == other.0 && self.lexeme == other.1 && self.literal == other.2
+//     }
+// }
+impl PartialEq<Token> for TokenType {
+    fn eq(&self, other: &Token) -> bool {
+        self == &other.token_type
     }
 }
 
@@ -391,8 +402,8 @@ impl Display for TokenType {
     }
 }
 
-#[derive(Debug)]
-enum Literal {
+#[derive(Debug, PartialEq)]
+pub enum Literal {
     String(String),
     Digit(f64),
 }
@@ -408,6 +419,24 @@ impl Display for Literal {
                     write!(f, "{}", value)
                 };
             }
+        }
+    }
+}
+
+impl PartialEq<String> for Literal {
+    fn eq(&self, other: &String) -> bool {
+        match self {
+            Literal::String(s) => s == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<f64> for Literal {
+    fn eq(&self, other: &f64) -> bool {
+        match self {
+            Literal::Digit(d) => d == other,
+            _ => false,
         }
     }
 }
