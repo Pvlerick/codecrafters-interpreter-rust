@@ -213,14 +213,10 @@ impl Iterator for TokensIterator {
         }
 
         loop {
-            let item = self.next();
-
-            if item.is_none() {
+            let Some(character) = self.next() else {
                 self.has_reached_eof = true;
                 return Some(Ok(Token::new(EOF, "")));
-            }
-
-            let character = item.unwrap();
+            };
 
             match character {
                 '(' => return Some(Ok(Token::new(LeftParenthesis, "("))),
