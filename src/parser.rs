@@ -23,19 +23,19 @@ where
 
 macro_rules! gramar_rule {
     ($name:ident, $base:ident, $($token_type:expr),+) => {
-        fn $name(&mut self) -> Expr {
+        fn $name(&mut self) -> Result<Expr, ()> {
             let mut token_types = Vec::new();
             $(
                 token_types.push($token_type);
             )+
-            let mut expr = self.$base();
+            let mut expr = self.$base()?;
 
             while let Some(operator) = self.next_matches(&token_types) {
-                let right = self.$base();
+                let right = self.$base()?;
                 expr = Expr::binary(operator, expr, right);
             }
 
-            expr
+            Ok(expr)
         }
     };
 }
@@ -49,11 +49,11 @@ where
         Parser { tokens }
     }
 
-    pub fn parse(&mut self) -> String {
-        self.expression().to_string()
+    pub fn parse(&mut self) -> Result<String, ()> {
+        self.expression().map(|i| i.to_string())
     }
 
-    pub fn expression(&mut self) -> Expr {
+    pub fn expression(&mut self) -> Result<Expr, ()> {
         self.equality()
     }
 
@@ -74,36 +74,35 @@ where
     gramar_rule!(term, factor, TokenType::Minus, TokenType::Plus);
     gramar_rule!(factor, unary, TokenType::Slash, TokenType::Star);
 
-    fn unary(&mut self) -> Expr {
+    fn unary(&mut self) -> Result<Expr, ()> {
         use TokenType::*;
         if let Some(operator) = self.next_matches(&vec![Bang, Minus]) {
-            let right = self.unary();
-            return Expr::unary(operator, right);
+            let right = self.unary()?;
+            return Ok(Expr::unary(operator, right));
         }
 
         self.primary()
     }
 
-    fn primary(&mut self) -> Expr {
+    fn primary(&mut self) -> Result<Expr, ()> {
         if let Some(token) = self.tokens.next() {
             use TokenType::*;
             match token.token_type {
-                False | True | Nil | Number | String => return Expr::literal(token),
+                False | True | Nil | Number | String => return Ok(Expr::literal(token)),
                 LeftParenthesis => {
-                    let expr = self.expression();
+                    let expr = self.expression()?;
                     if let Some(_) = self.next_matches(&vec![RightParenthesis]) {
-                        return Expr::grouping(expr);
+                        return Ok(Expr::grouping(expr));
                     } else {
-                        panic!("booom");
+                        return Err(());
                     }
                 }
-                tt => {
-                    println!("eeeef: {}", tt);
-                    panic!("eeeeeef");
+                _ => {
+                    return Err(());
                 }
             }
         } else {
-            Expr::literal(Token::new(TokenType::EOF, ""))
+            Ok(Expr::literal(Token::new(TokenType::EOF, "")))
         }
     }
 
