@@ -9,10 +9,9 @@ equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
-unary          → ( "!" | "-" ) unary
-               | primary ;
-primary        → NUMBER | STRING | "true" | "false" | "nil"
-               | "(" expression ")" ;
+unary          → ( "!" | "-" ) unary | primary ;
+primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+
 */
 
 pub struct Parser<T>
@@ -50,10 +49,8 @@ where
         Parser { tokens }
     }
 
-    pub fn parse(&mut self) {
-        let x = self.expression();
-
-        println!("{}", x);
+    pub fn parse(&mut self) -> String {
+        self.expression().to_string()
     }
 
     pub fn expression(&mut self) -> Expr {

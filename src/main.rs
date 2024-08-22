@@ -86,5 +86,5 @@ fn parse_file(file_path: &str) {
 
     let mut scanner = Scanner::new(BufReader::new(file));
     let mut parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
-    parser.parse();
+    println!("{}", parser.parse());
 }
