@@ -162,8 +162,8 @@ impl TokensIterator {
             buf.push('"');
             return Ok(Token::with_literal(
                 TokenType::String,
-                buf[1..buf.len() - 1].to_string(),
-                Literal::String(buf),
+                buf.to_string(),
+                Literal::String(buf[1..buf.len() - 1].to_string()),
             ));
         } else {
             return Err(format!("[line {}] Error: Unterminated string.", start_line));

@@ -19,8 +19,8 @@ fn scanner_string_literal() {
             Token::new(Identifier, "foo".to_string()),
             Token::with_literal(
                 String,
-                "hello".to_string(),
-                Literal::String("\"hello\"".to_string())
+                "\"hello\"".to_string(),
+                Literal::String("hello".to_string())
             ),
             Token::new(EOF, "")
         ],
