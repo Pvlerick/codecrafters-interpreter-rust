@@ -164,6 +164,7 @@ impl TokensIterator {
                 TokenType::String,
                 buf.to_string(),
                 Literal::String(buf[1..buf.len() - 1].to_string()),
+                start_line,
             ));
         } else {
             return Err(format!("[line {}] Error: Unterminated string.", start_line));
@@ -182,6 +183,7 @@ impl TokensIterator {
             TokenType::Number,
             buf,
             Literal::Digit(value),
+            self.line,
         ));
     }
 
@@ -189,8 +191,8 @@ impl TokensIterator {
         let mut buf = initial_digit.to_string();
         self.advance_while(|i| i.is_alphanumeric() || i == '_', &mut buf);
         return match TokensIterator::is_keyword(buf.as_str()) {
-            Some(token_type) => Ok(Token::new(token_type, buf)),
-            None => Ok(Token::new(TokenType::Identifier, buf)),
+            Some(token_type) => Ok(Token::new(token_type, buf, self.line)),
+            None => Ok(Token::new(TokenType::Identifier, buf, self.line)),
         };
     }
 
@@ -215,30 +217,38 @@ impl Iterator for TokensIterator {
         loop {
             let Some(character) = self.next() else {
                 self.has_reached_eof = true;
-                return Some(Ok(Token::new(EOF, "")));
+                return Some(Ok(Token::new(EOF, "", self.line)));
             };
 
             match character {
-                '(' => return Some(Ok(Token::new(LeftParenthesis, "("))),
-                ')' => return Some(Ok(Token::new(RightParenthesis, ")"))),
-                '{' => return Some(Ok(Token::new(LeftBrace, "{"))),
-                '}' => return Some(Ok(Token::new(RightBrace, "}"))),
-                ',' => return Some(Ok(Token::new(Comma, ","))),
-                '.' => return Some(Ok(Token::new(Dot, "."))),
-                '-' => return Some(Ok(Token::new(Minus, "-"))),
-                '+' => return Some(Ok(Token::new(Plus, "+"))),
-                ';' => return Some(Ok(Token::new(Semicolon, ";"))),
-                '*' => return Some(Ok(Token::new(Star, "*"))),
-                '=' if self.next_is('=') => return Some(Ok(Token::new(EqualEqual, "=="))),
-                '=' => return Some(Ok(Token::new(Equal, "="))),
-                '!' if self.next_is('=') => return Some(Ok(Token::new(BangEqual, "!="))),
-                '!' => return Some(Ok(Token::new(Bang, "!"))),
-                '<' if self.next_is('=') => return Some(Ok(Token::new(LessEqual, "<="))),
-                '<' => return Some(Ok(Token::new(Less, "<"))),
-                '>' if self.next_is('=') => return Some(Ok(Token::new(GreaterEqual, ">="))),
-                '>' => return Some(Ok(Token::new(Greater, ">"))),
+                '(' => return Some(Ok(Token::new(LeftParenthesis, "(", self.line))),
+                ')' => return Some(Ok(Token::new(RightParenthesis, ")", self.line))),
+                '{' => return Some(Ok(Token::new(LeftBrace, "{", self.line))),
+                '}' => return Some(Ok(Token::new(RightBrace, "}", self.line))),
+                ',' => return Some(Ok(Token::new(Comma, ",", self.line))),
+                '.' => return Some(Ok(Token::new(Dot, ".", self.line))),
+                '-' => return Some(Ok(Token::new(Minus, "-", self.line))),
+                '+' => return Some(Ok(Token::new(Plus, "+", self.line))),
+                ';' => return Some(Ok(Token::new(Semicolon, ";", self.line))),
+                '*' => return Some(Ok(Token::new(Star, "*", self.line))),
+                '=' if self.next_is('=') => {
+                    return Some(Ok(Token::new(EqualEqual, "==", self.line)))
+                }
+                '=' => return Some(Ok(Token::new(Equal, "=", self.line))),
+                '!' if self.next_is('=') => {
+                    return Some(Ok(Token::new(BangEqual, "!=", self.line)))
+                }
+                '!' => return Some(Ok(Token::new(Bang, "!", self.line))),
+                '<' if self.next_is('=') => {
+                    return Some(Ok(Token::new(LessEqual, "<=", self.line)))
+                }
+                '<' => return Some(Ok(Token::new(Less, "<", self.line))),
+                '>' if self.next_is('=') => {
+                    return Some(Ok(Token::new(GreaterEqual, ">=", self.line)))
+                }
+                '>' => return Some(Ok(Token::new(Greater, ">", self.line))),
                 '/' if self.next_is('/') => self.handle_line_comment(),
-                '/' => return Some(Ok(Token::new(Slash, "/"))),
+                '/' => return Some(Ok(Token::new(Slash, "/", self.line))),
                 '"' => return Some(self.handle_string()),
                 c if c.is_digit(10) => return Some(self.handle_digit(c)),
                 ' ' | '\r' | '\n' | '\t' => {}
@@ -261,22 +271,30 @@ pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
     pub literal: Option<Literal>,
+    pub line: usize,
 }
 
 impl Token {
-    pub fn new<S: ToString>(token_type: TokenType, lexeme: S) -> Self {
+    pub fn new<S: ToString>(token_type: TokenType, lexeme: S, line: usize) -> Self {
         Token {
             token_type,
             lexeme: lexeme.to_string(),
             literal: None,
+            line,
         }
     }
 
-    pub fn with_literal(token_type: TokenType, lexeme: String, literal: Literal) -> Self {
+    pub fn with_literal(
+        token_type: TokenType,
+        lexeme: String,
+        literal: Literal,
+        line: usize,
+    ) -> Self {
         Token {
             token_type,
             lexeme,
             literal: Some(literal),
+            line,
         }
     }
 

@@ -16,13 +16,14 @@ fn scanner_string_literal() {
     use TokenType::*;
     assert_eq!(
         vec![
-            Token::new(Identifier, "foo".to_string()),
+            Token::new(Identifier, "foo".to_string(), 1),
             Token::with_literal(
                 String,
                 "\"hello\"".to_string(),
-                Literal::String("hello".to_string())
+                Literal::String("hello".to_string()),
+                1
             ),
-            Token::new(EOF, "")
+            Token::new(EOF, "", 2)
         ],
         tokens
     );
@@ -40,9 +41,9 @@ fn scanner_digit_literal() {
     use TokenType::*;
     assert_eq!(
         vec![
-            Token::new(Identifier, "bar".to_string()),
-            Token::with_literal(Number, "123.456".to_string(), Literal::Digit(123.456f64)),
-            Token::new(EOF, "")
+            Token::new(Identifier, "bar".to_string(), 1),
+            Token::with_literal(Number, "123.456".to_string(), Literal::Digit(123.456f64), 1),
+            Token::new(EOF, "", 2)
         ],
         tokens
     );

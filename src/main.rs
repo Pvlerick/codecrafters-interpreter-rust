@@ -31,7 +31,7 @@ fn main() {
 
             parse_file(&args[2]);
         }
-        Some("evaluate") == {
+        Some("evaluate") => {
             if args.len() < 3 {
                 writeln!(io::stderr(), "Usage: {} evaluate <file_path>", args[0]).unwrap();
                 return;
@@ -103,7 +103,7 @@ fn parse_file(file_path: &str) {
 
 fn evaluate_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
-    
+
     let mut scanner = Scanner::new(BufReader::new(file));
-    let mut parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
+    let _parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
 }

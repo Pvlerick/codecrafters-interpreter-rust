@@ -102,7 +102,7 @@ where
                 }
             }
         } else {
-            Ok(Expr::literal(Token::new(TokenType::EOF, "")))
+            Ok(Expr::literal(Token::new(TokenType::EOF, "", 0)))
         }
     }
 
