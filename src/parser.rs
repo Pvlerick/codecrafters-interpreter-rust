@@ -19,6 +19,7 @@ where
     T: Iterator<Item = Token>,
 {
     tokens: Peekable<T>,
+    error: Option<Vec<String>>,
 }
 
 macro_rules! gramar_rule {
@@ -46,11 +47,32 @@ where
 {
     pub fn new(tokens: T) -> Self {
         let tokens = tokens.peekable();
-        Parser { tokens }
+        Parser {
+            tokens,
+            error: None,
+        }
     }
 
-    pub fn parse(&mut self) -> Result<String, ()> {
-        self.expression().map(|i| i.to_string())
+    pub fn parse(&mut self) -> Result<String, &Vec<String>> {
+        match self.expression() {
+            Ok(e) => Ok(e.to_string()),
+            Err(_) => Err(self.error.as_ref().unwrap()),
+        }
+    }
+
+    fn error(&mut self, error: String) {
+        self.error.get_or_insert(vec![]).push(error);
+        self.synchronize();
+    }
+
+    fn synchronize(&mut self) {
+        use TokenType::*;
+        if let Some(token_type) = self.tokens.peek().map(|i| i.token_type) {
+            match token_type {
+                Semicolon | Class | For | Fun | If | Print | Return | Var | While => {}
+                _ => _ = self.tokens.next(),
+            }
+        }
     }
 
     pub fn expression(&mut self) -> Result<Expr, ()> {
@@ -76,7 +98,7 @@ where
 
     fn unary(&mut self) -> Result<Expr, ()> {
         use TokenType::*;
-        if let Some(operator) = self.next_matches(&vec![Bang, Minus]) {
+        if let Some(operator) = self.next_matches([Bang, Minus]) {
             let right = self.unary()?;
             return Ok(Expr::unary(operator, right));
         }
@@ -91,14 +113,16 @@ where
                 False | True | Nil | Number | String => return Ok(Expr::literal(token)),
                 LeftParenthesis => {
                     let expr = self.expression()?;
-                    if let Some(_) = self.next_matches(&vec![RightParenthesis]) {
+                    if let Some(_) = self.next_matches(RightParenthesis) {
                         return Ok(Expr::grouping(expr));
                     } else {
-                        return Err(());
+                        self.error("Expect ')' after expression.".to_string());
+                        Err(())
                     }
                 }
                 _ => {
-                    return Err(());
+                    self.error("Expect expression.".to_string());
+                    Err(())
                 }
             }
         } else {
@@ -106,8 +130,30 @@ where
         }
     }
 
-    fn next_matches(&mut self, types: &Vec<TokenType>) -> Option<Token> {
-        self.tokens.next_if(|i| types.contains(&i.token_type))
+    fn next_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Option<Token> {
+        self.tokens.next_if(|i| matcher.matches(&i.token_type))
+    }
+}
+
+trait TokenTypeMatcher {
+    fn matches(&self, token_type: &TokenType) -> bool;
+}
+
+impl TokenTypeMatcher for TokenType {
+    fn matches(&self, token_type: &TokenType) -> bool {
+        self == token_type
+    }
+}
+
+impl TokenTypeMatcher for &Vec<TokenType> {
+    fn matches(&self, token_type: &TokenType) -> bool {
+        self.contains(token_type)
+    }
+}
+
+impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
+    fn matches(&self, token_type: &TokenType) -> bool {
+        true
     }
 }
 
