@@ -23,15 +23,11 @@ where
 }
 
 macro_rules! gramar_rule {
-    ($name:ident, $base:ident, $($token_type:expr),+) => {
+    ($name:ident, $base:ident, $token_types:expr) => {
         fn $name(&mut self) -> Result<Expr, ()> {
-            let mut token_types = Vec::new();
-            $(
-                token_types.push($token_type);
-            )+
             let mut expr = self.$base()?;
 
-            while let Some(operator) = self.next_matches(&token_types) {
+            while let Some(operator) = self.next_matches($token_types) {
                 let right = self.$base()?;
                 expr = Expr::binary(operator, expr, right);
             }
@@ -82,19 +78,20 @@ where
     gramar_rule!(
         equality,
         comparison,
-        TokenType::BangEqual,
-        TokenType::EqualEqual
+        [TokenType::BangEqual, TokenType::EqualEqual]
     );
     gramar_rule!(
         comparison,
         term,
-        TokenType::Greater,
-        TokenType::GreaterEqual,
-        TokenType::Less,
-        TokenType::LessEqual
+        [
+            TokenType::Greater,
+            TokenType::GreaterEqual,
+            TokenType::Less,
+            TokenType::LessEqual
+        ]
     );
-    gramar_rule!(term, factor, TokenType::Minus, TokenType::Plus);
-    gramar_rule!(factor, unary, TokenType::Slash, TokenType::Star);
+    gramar_rule!(term, factor, [TokenType::Minus, TokenType::Plus]);
+    gramar_rule!(factor, unary, [TokenType::Slash, TokenType::Star]);
 
     fn unary(&mut self) -> Result<Expr, ()> {
         use TokenType::*;
@@ -145,15 +142,9 @@ impl TokenTypeMatcher for TokenType {
     }
 }
 
-impl TokenTypeMatcher for &Vec<TokenType> {
-    fn matches(&self, token_type: &TokenType) -> bool {
-        self.contains(token_type)
-    }
-}
-
 impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
     fn matches(&self, token_type: &TokenType) -> bool {
-        true
+        self.contains(token_type)
     }
 }
 
