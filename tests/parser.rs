@@ -45,5 +45,5 @@ fn parser_invalid_grammar() {
     let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
     let res = parser.parse();
     assert!(res.is_err());
-    assert_eq!("(group (!= 12.0 13.0))", parser.parse().unwrap());
+    assert_eq!("Expect ')' after expression.", res.unwrap_err()[0]);
 }

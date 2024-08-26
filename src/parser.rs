@@ -63,7 +63,7 @@ where
 
     fn synchronize(&mut self) {
         use TokenType::*;
-        if let Some(token_type) = self.tokens.peek().map(|i| i.token_type) {
+        while let Some(token_type) = self.tokens.peek().map(|i| i.token_type) {
             match token_type {
                 Semicolon | Class | For | Fun | If | Print | Return | Var | While => {}
                 _ => _ = self.tokens.next(),
