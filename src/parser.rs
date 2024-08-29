@@ -58,17 +58,20 @@ where
 
     fn error(&mut self, error: String) {
         self.error.get_or_insert(vec![]).push(error);
-        self.synchronize();
+        // self.synchronize();
     }
 
+    #[allow(dead_code)]
     fn synchronize(&mut self) {
         use TokenType::*;
+        println!("synchronizing...");
         while let Some(token_type) = self.tokens.peek().map(|i| i.token_type) {
             match token_type {
                 Semicolon | Class | For | Fun | If | Print | Return | Var | While => {}
                 _ => _ = self.tokens.next(),
             }
         }
+        println!("done.");
     }
 
     pub fn expression(&mut self) -> Result<Expr, ()> {

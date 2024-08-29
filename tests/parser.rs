@@ -47,3 +47,20 @@ fn parser_invalid_grammar() {
     assert!(res.is_err());
     assert_eq!("Expect ')' after expression.", res.unwrap_err()[0]);
 }
+
+#[test]
+fn parser_invalid_grammar_multiple_error() {
+    let mut tmp_file = TempFile::with_content(
+        r#"(false
+var a = bleh;
+beh"#,
+    );
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let res = parser.parse();
+    assert!(res.is_err());
+    let errors = res.unwrap_err();
+    assert_eq!("Expect ')' after expression.", errors[0]);
+    // assert_eq!("Expect ')' after expression.", errors[1]);
+    // assert_eq!("Expect ')' after expression.", errors[2]);
+}
