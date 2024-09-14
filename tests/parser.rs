@@ -15,7 +15,7 @@ fn parser_boolean() {
     let mut parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
     let res = parser.parse();
     assert!(res.is_ok());
-    assert_eq!("truez", res.unwrap().to_string());
+    assert_eq!("true", res.unwrap().to_string());
 }
 
 #[test]

@@ -28,21 +28,44 @@ fn eval(expression: &Expr) -> Type {
             _ => match &t.literal {
                 Some(Literal::Digit(n)) => Type::Number(*n),
                 Some(Literal::String(s)) => Type::String(s.clone()),
-                _ => panic!("unreachable"),
+                _ => panic!("oh no..."),
             },
         },
         Expr::Grouping(e) => eval(e),
         Expr::Unary(t, e) => match t.token_type {
             TokenType::Minus => match eval(e) {
                 Type::Number(n) => Type::Number(-n),
-                _ => panic!("unreachable"),
+                _ => panic!("oh no..."),
             },
-            TokenType::Bang => match eval(e) {
-                _ => panic!("foo"),
-            },
-            _ => panic!("unreachable arm"),
+            TokenType::Bang => Type::Boolean(!is_truthy(e)),
+            _ => panic!("oh no..."),
         },
-        _ => panic!("bar"),
+        Expr::Binary(t, l, r) => match (t.token_type, eval(l), eval(r)) {
+            (TokenType::Plus, Type::Number(a), Type::Number(b)) => Type::Number(a + b),
+            (TokenType::Minus, Type::Number(a), Type::Number(b)) => Type::Number(a - b),
+            (TokenType::Slash, Type::Number(a), Type::Number(b)) => Type::Number(a / b),
+            (TokenType::Star, Type::Number(a), Type::Number(b)) => Type::Number(a * b),
+            (TokenType::Greater, Type::Number(a), Type::Number(b)) => Type::Boolean(a > b),
+            (TokenType::GreaterEqual, Type::Number(a), Type::Number(b)) => Type::Boolean(a >= b),
+            (TokenType::Less, Type::Number(a), Type::Number(b)) => Type::Boolean(a < b),
+            (TokenType::LessEqual, Type::Number(a), Type::Number(b)) => Type::Boolean(a <= b),
+            (TokenType::EqualEqual, Type::Number(a), Type::Number(b)) => Type::Boolean(a == b),
+            (TokenType::BangEqual, Type::Number(a), Type::Number(b)) => Type::Boolean(a != b),
+            (TokenType::Plus, Type::String(a), Type::String(b)) => {
+                Type::String(format!("{}{}", a, b))
+            }
+            _ => panic!("oh no..."),
+        },
+    }
+}
+
+fn is_truthy(expression: &Expr) -> bool {
+    match expression {
+        Expr::Literal(t) => match t.token_type {
+            TokenType::Nil | TokenType::False => false,
+            _ => true,
+        },
+        _ => panic!("oh no..."),
     }
 }
 
