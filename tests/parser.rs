@@ -53,7 +53,8 @@ fn parser_empty() {
     let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
     let res = parser.parse();
     assert!(res.is_err());
-    assert_eq!("Expect expression.", res.unwrap_err()[0]);
+    assert_eq!("", res.unwrap_err()[0]); //CodeCrafters requires this bht the book says
+                                         //otherwise...
 }
 
 #[test]

@@ -38,7 +38,7 @@ fn eval(expression: &Expr) -> Type {
                 Type::Number(n) => Type::Number(-n),
                 _ => panic!("oh no..."),
             },
-            TokenType::Bang => Type::Boolean(!is_truthy(e)),
+            TokenType::Bang => Type::Boolean(!is_truthy(eval(e))),
             _ => panic!("oh no..."),
         },
         Expr::Binary(t, l, r) => match (t.token_type, eval(l), eval(r)) {
@@ -60,13 +60,11 @@ fn eval(expression: &Expr) -> Type {
     }
 }
 
-fn is_truthy(expression: &Expr) -> bool {
-    match expression {
-        Expr::Literal(t) => match t.token_type {
-            TokenType::Nil | TokenType::False => false,
-            _ => true,
-        },
-        _ => panic!("oh no..."),
+fn is_truthy(t: Type) -> bool {
+    match t {
+        Type::Nil => false,
+        Type::Boolean(b) => b,
+        _ => true,
     }
 }
 

@@ -68,8 +68,26 @@ fn evaluate_nil() {
 }
 
 #[test]
-fn evaluate_not() {
+fn evaluate_not_1() {
     let mut tmp_file = TempFile::with_content("!false");
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let interpreter = Interpreter::new(parser.parse().unwrap());
+    assert_eq!("true", interpreter.evaluate());
+}
+
+#[test]
+fn evaluate_not_2() {
+    let mut tmp_file = TempFile::with_content("!!false");
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let interpreter = Interpreter::new(parser.parse().unwrap());
+    assert_eq!("false", interpreter.evaluate());
+}
+
+#[test]
+fn evaluate_not_3() {
+    let mut tmp_file = TempFile::with_content("!!42");
     let mut scanner = Scanner::new(tmp_file.reader());
     let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
     let interpreter = Interpreter::new(parser.parse().unwrap());
