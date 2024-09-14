@@ -25,6 +25,7 @@ fn eval(expression: &Expr) -> Type {
         Expr::Literal(t) => match t.token_type {
             TokenType::True => Type::Boolean(true),
             TokenType::False => Type::Boolean(false),
+            TokenType::Nil => Type::Nil,
             _ => match &t.literal {
                 Some(Literal::Digit(n)) => Type::Number(*n),
                 Some(Literal::String(s)) => Type::String(s.clone()),
@@ -70,6 +71,7 @@ fn is_truthy(expression: &Expr) -> bool {
 }
 
 enum Type {
+    Nil,
     Boolean(bool),
     Number(f64),
     String(String),
@@ -78,6 +80,7 @@ enum Type {
 impl Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Type::Nil => write!(f, "nil"),
             Type::Number(n) => write!(f, "{}", n),
             Type::String(s) => write!(f, "{}", s),
             Type::Boolean(b) => write!(f, "{}", b),

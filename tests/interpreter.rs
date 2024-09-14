@@ -59,6 +59,15 @@ fn evaluate_false() {
 }
 
 #[test]
+fn evaluate_nil() {
+    let mut tmp_file = TempFile::with_content("nil");
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let interpreter = Interpreter::new(parser.parse().unwrap());
+    assert_eq!("nil", interpreter.evaluate());
+}
+
+#[test]
 fn evaluate_not() {
     let mut tmp_file = TempFile::with_content("!false");
     let mut scanner = Scanner::new(tmp_file.reader());
