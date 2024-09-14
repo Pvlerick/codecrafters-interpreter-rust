@@ -121,7 +121,7 @@ where
                     }
                 }
                 _ => {
-                    self.error("Expect expression.".to_string());
+                    self.error("".to_string());
                     Err(())
                 }
             }
