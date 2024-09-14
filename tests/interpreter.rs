@@ -256,6 +256,33 @@ fn evaluate_equal_2() {
 }
 
 #[test]
+fn evaluate_equal_3() {
+    let mut tmp_file = TempFile::with_content("\"foo\" == 5");
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let interpreter = Interpreter::new(parser.parse().unwrap());
+    assert_eq!("false", interpreter.evaluate());
+}
+
+#[test]
+fn evaluate_equal_4() {
+    let mut tmp_file = TempFile::with_content("\"foo\" == \"bar\"");
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let interpreter = Interpreter::new(parser.parse().unwrap());
+    assert_eq!("false", interpreter.evaluate());
+}
+
+#[test]
+fn evaluate_equal_5() {
+    let mut tmp_file = TempFile::with_content("\"bar\" == \"bar\"");
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let interpreter = Interpreter::new(parser.parse().unwrap());
+    assert_eq!("true", interpreter.evaluate());
+}
+
+#[test]
 fn evaluate_not_equal_1() {
     let mut tmp_file = TempFile::with_content("2 != 3");
     let mut scanner = Scanner::new(tmp_file.reader());

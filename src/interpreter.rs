@@ -55,6 +55,10 @@ fn eval(expression: &Expr) -> Type {
             (TokenType::Plus, Type::String(a), Type::String(b)) => {
                 Type::String(format!("{}{}", a, b))
             }
+            (TokenType::EqualEqual, Type::String(a), Type::String(b)) => Type::Boolean(a == b),
+            (TokenType::BangEqual, Type::String(a), Type::String(b)) => Type::Boolean(a != b),
+            (TokenType::EqualEqual, _, _) => Type::Boolean(false),
+            (TokenType::BangEqual, _, _) => Type::Boolean(false),
             _ => panic!("oh no..."),
         },
     }
