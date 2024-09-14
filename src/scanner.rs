@@ -284,15 +284,15 @@ impl Token {
         }
     }
 
-    pub fn with_literal(
+    pub fn with_literal<S: ToString>(
         token_type: TokenType,
-        lexeme: String,
+        lexeme: S,
         literal: Literal,
         line: usize,
     ) -> Self {
         Token {
             token_type,
-            lexeme,
+            lexeme: lexeme.to_string(),
             literal: Some(literal),
             line,
         }
@@ -315,12 +315,7 @@ impl Display for Token {
         write!(f, "{} {} {}", self.token_type, self.lexeme, literal)
     }
 }
-// TODO Test only cfg
-// impl PartialEq<(TokenType, &str, &str)> for Token {
-//     fn eq(&self, other: &(TokenType, &str, Option<&str>)) -> bool {
-//         self.token_type == other.0 && self.lexeme == other.1 && self.literal == other.2
-//     }
-// }
+
 impl PartialEq<Token> for TokenType {
     fn eq(&self, other: &Token) -> bool {
         self == &other.token_type

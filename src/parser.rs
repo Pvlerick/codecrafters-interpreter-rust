@@ -49,10 +49,10 @@ where
         }
     }
 
-    pub fn parse(&mut self) -> Result<String, &Vec<String>> {
+    pub fn parse(&mut self) -> Result<Expr, &Vec<String>> {
         match self.expression() {
-            Ok(e) => Ok(e.to_string()),
-            Err(_) => Err(self.error.as_ref().unwrap()),
+            Ok(e) => Ok(e),
+            Err(_) => Err(&self.error.as_ref().unwrap()),
         }
     }
 
@@ -151,6 +151,7 @@ impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
     }
 }
 
+#[derive(Debug)]
 pub enum Expr {
     Binary(Token, Box<Expr>, Box<Expr>),
     Grouping(Box<Expr>),

@@ -5,6 +5,20 @@ use interpreter_starter_rust::{parser::Parser, scanner::Scanner};
 use crate::common::TempFile;
 
 #[test]
+fn parser_boolean() {
+    let mut tmp_file = TempFile::with_content("true");
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let tokens = scanner.scan_tokens();
+    assert!(tokens.is_ok());
+    let tokens = tokens.unwrap().collect::<Vec<_>>();
+    assert!(tokens.iter().all(|i| i.is_ok()));
+    let mut parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
+    let res = parser.parse();
+    assert!(res.is_ok());
+    assert_eq!("truez", res.unwrap().to_string());
+}
+
+#[test]
 fn parser_number() {
     let mut tmp_file = TempFile::with_content("123.456");
     let mut scanner = Scanner::new(tmp_file.reader());
@@ -13,7 +27,9 @@ fn parser_number() {
     let tokens = tokens.unwrap().collect::<Vec<_>>();
     assert!(tokens.iter().all(|i| i.is_ok()));
     let mut parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
-    assert_eq!("123.456", parser.parse().unwrap());
+    let res = parser.parse();
+    assert!(res.is_ok());
+    assert_eq!("123.456", res.unwrap().to_string());
 }
 
 #[test]
@@ -25,7 +41,9 @@ fn parser_expression() {
     let tokens = tokens.unwrap().collect::<Vec<_>>();
     assert!(tokens.iter().all(|i| i.is_ok()));
     let mut parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
-    assert_eq!("(group (!= 12.0 13.0))", parser.parse().unwrap());
+    let res = parser.parse();
+    assert!(res.is_ok());
+    assert_eq!("(group (!= 12.0 13.0))", res.unwrap().to_string());
 }
 
 #[test]

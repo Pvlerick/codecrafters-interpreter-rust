@@ -2,9 +2,11 @@ use std::env;
 use std::fs::File;
 use std::io::{self, BufReader, Write};
 
+use interpreter::Interpreter;
 use parser::Parser;
 use scanner::Scanner;
 
+pub mod interpreter;
 pub mod parser;
 pub mod scanner;
 
@@ -96,7 +98,7 @@ fn parse_file(file_path: &str) {
     let mut parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
 
     match parser.parse() {
-        Ok(s) => println!("{}", s),
+        Ok(expr) => println!("{}", expr),
         Err(errors) => {
             for e in errors {
                 println!("{}", e);
@@ -110,5 +112,7 @@ fn evaluate_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
     let mut scanner = Scanner::new(BufReader::new(file));
-    let _parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
+    let interpreter = Interpreter::new(parser.parse().unwrap());
+    println!("{}", interpreter.evaluate());
 }
