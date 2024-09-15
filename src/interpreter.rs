@@ -45,6 +45,7 @@ fn eval(expression: &Expr) -> Result<Type, Box<dyn Error>> {
             (TokenType::Plus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a + b)),
             (TokenType::Minus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a - b)),
             (TokenType::Slash, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a / b)),
+            (TokenType::Slash, _, _) => Err("Operands must be numbers.".into()),
             (TokenType::Star, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a * b)),
             (TokenType::Greater, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a > b)),
             (TokenType::GreaterEqual, Type::Number(a), Type::Number(b)) => {

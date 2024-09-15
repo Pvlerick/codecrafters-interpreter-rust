@@ -386,5 +386,5 @@ fn evaluate_runtime_error_2() {
     let interpreter = Interpreter::new(parser.parse().unwrap());
     let res = interpreter.evaluate();
     assert!(res.is_err());
-    assert_eq!("false", res.unwrap());
+    assert_eq!("Operands must be numbers.", res.unwrap_err().to_string());
 }
