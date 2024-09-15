@@ -114,5 +114,11 @@ fn evaluate_file(file_path: &str) {
     let mut scanner = Scanner::new(BufReader::new(file));
     let mut parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
     let interpreter = Interpreter::new(parser.parse().unwrap());
-    println!("{}", interpreter.evaluate());
+    match interpreter.evaluate() {
+        Ok(res) => println!("{}", res),
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(70);
+        }
+    }
 }

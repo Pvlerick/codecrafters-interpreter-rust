@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{error::Error, fmt::Display};
 
 use crate::{
     parser::Expr,
@@ -14,52 +14,54 @@ impl Interpreter {
         Interpreter { expression }
     }
 
-    pub fn evaluate(&self) -> String {
-        eval(&self.expression).to_string()
+    pub fn evaluate(&self) -> Result<String, Box<dyn Error>> {
+        eval(&self.expression).map(|i| i.to_string())
     }
 }
 
-fn eval(expression: &Expr) -> Type {
+fn eval(expression: &Expr) -> Result<Type, Box<dyn Error>> {
     match expression {
         // Expr::Literal(t) => t.literal.as_ref().unwrap().to_string(),
         Expr::Literal(t) => match t.token_type {
-            TokenType::True => Type::Boolean(true),
-            TokenType::False => Type::Boolean(false),
-            TokenType::Nil => Type::Nil,
+            TokenType::True => Ok(Type::Boolean(true)),
+            TokenType::False => Ok(Type::Boolean(false)),
+            TokenType::Nil => Ok(Type::Nil),
             _ => match &t.literal {
-                Some(Literal::Digit(n)) => Type::Number(*n),
-                Some(Literal::String(s)) => Type::String(s.clone()),
+                Some(Literal::Digit(n)) => Ok(Type::Number(*n)),
+                Some(Literal::String(s)) => Ok(Type::String(s.clone())),
                 _ => panic!("oh no..."),
             },
         },
         Expr::Grouping(e) => eval(e),
         Expr::Unary(t, e) => match t.token_type {
-            TokenType::Minus => match eval(e) {
-                Type::Number(n) => Type::Number(-n),
-                _ => panic!("oh no..."),
+            TokenType::Minus => match eval(e)? {
+                Type::Number(n) => Ok(Type::Number(-n)),
+                _ => Err("Operand must be a number.".into()),
             },
-            TokenType::Bang => Type::Boolean(!is_truthy(eval(e))),
+            TokenType::Bang => Ok(Type::Boolean(!is_truthy(eval(e)?))),
             _ => panic!("oh no..."),
         },
-        Expr::Binary(t, l, r) => match (t.token_type, eval(l), eval(r)) {
-            (TokenType::Plus, Type::Number(a), Type::Number(b)) => Type::Number(a + b),
-            (TokenType::Minus, Type::Number(a), Type::Number(b)) => Type::Number(a - b),
-            (TokenType::Slash, Type::Number(a), Type::Number(b)) => Type::Number(a / b),
-            (TokenType::Star, Type::Number(a), Type::Number(b)) => Type::Number(a * b),
-            (TokenType::Greater, Type::Number(a), Type::Number(b)) => Type::Boolean(a > b),
-            (TokenType::GreaterEqual, Type::Number(a), Type::Number(b)) => Type::Boolean(a >= b),
-            (TokenType::Less, Type::Number(a), Type::Number(b)) => Type::Boolean(a < b),
-            (TokenType::LessEqual, Type::Number(a), Type::Number(b)) => Type::Boolean(a <= b),
-            (TokenType::EqualEqual, Type::Number(a), Type::Number(b)) => Type::Boolean(a == b),
-            (TokenType::BangEqual, Type::Number(a), Type::Number(b)) => Type::Boolean(a != b),
-            (TokenType::Plus, Type::String(a), Type::String(b)) => {
-                Type::String(format!("{}{}", a, b))
+        Expr::Binary(t, l, r) => match (t.token_type, eval(l)?, eval(r)?) {
+            (TokenType::Plus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a + b)),
+            (TokenType::Minus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a - b)),
+            (TokenType::Slash, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a / b)),
+            (TokenType::Star, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a * b)),
+            (TokenType::Greater, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a > b)),
+            (TokenType::GreaterEqual, Type::Number(a), Type::Number(b)) => {
+                Ok(Type::Boolean(a >= b))
             }
-            (TokenType::EqualEqual, Type::String(a), Type::String(b)) => Type::Boolean(a == b),
-            (TokenType::BangEqual, Type::String(a), Type::String(b)) => Type::Boolean(a != b),
-            (TokenType::EqualEqual, _, _) => Type::Boolean(false),
-            (TokenType::BangEqual, _, _) => Type::Boolean(false),
-            _ => panic!("oh no..."),
+            (TokenType::Less, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a < b)),
+            (TokenType::LessEqual, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a <= b)),
+            (TokenType::EqualEqual, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a == b)),
+            (TokenType::BangEqual, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a != b)),
+            (TokenType::Plus, Type::String(a), Type::String(b)) => {
+                Ok(Type::String(format!("{}{}", a, b)))
+            }
+            (TokenType::EqualEqual, Type::String(a), Type::String(b)) => Ok(Type::Boolean(a == b)),
+            (TokenType::BangEqual, Type::String(a), Type::String(b)) => Ok(Type::Boolean(a != b)),
+            (TokenType::EqualEqual, _, _) => Ok(Type::Boolean(false)),
+            (TokenType::BangEqual, _, _) => Ok(Type::Boolean(false)),
+            _ => Err("hello".into()),
         },
     }
 }
