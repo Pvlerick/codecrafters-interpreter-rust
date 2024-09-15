@@ -388,3 +388,31 @@ fn evaluate_runtime_error_2() {
     assert!(res.is_err());
     assert_eq!("Operands must be numbers.", res.unwrap_err().to_string());
 }
+
+#[test]
+fn evaluate_runtime_error_3() {
+    let mut tmp_file = TempFile::with_content("3 + \"muffin\"");
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let interpreter = Interpreter::new(parser.parse().unwrap());
+    let res = interpreter.evaluate();
+    assert!(res.is_err());
+    assert_eq!(
+        "Operands must be two numbers or two strings.",
+        res.unwrap_err().to_string()
+    );
+}
+
+#[test]
+fn evaluate_runtime_error_4() {
+    let mut tmp_file = TempFile::with_content("3 - \"muffin\"");
+    let mut scanner = Scanner::new(tmp_file.reader());
+    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let interpreter = Interpreter::new(parser.parse().unwrap());
+    let res = interpreter.evaluate();
+    assert!(res.is_err());
+    assert_eq!(
+        "Operands must be two numbers or two strings.",
+        res.unwrap_err().to_string()
+    );
+}

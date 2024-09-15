@@ -43,7 +43,12 @@ fn eval(expression: &Expr) -> Result<Type, Box<dyn Error>> {
         },
         Expr::Binary(t, l, r) => match (t.token_type, eval(l)?, eval(r)?) {
             (TokenType::Plus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a + b)),
+            (TokenType::Plus, Type::String(a), Type::String(b)) => {
+                Ok(Type::String(format!("{}{}", a, b)))
+            }
+            (TokenType::Plus, _, _) => Err("Operands must be two numbers or two strings.".into()),
             (TokenType::Minus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a - b)),
+            (TokenType::Minus, _, _) => Err("Operands must be two numbers or two strings.".into()),
             (TokenType::Slash, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a / b)),
             (TokenType::Slash, _, _) => Err("Operands must be numbers.".into()),
             (TokenType::Star, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a * b)),
@@ -55,9 +60,6 @@ fn eval(expression: &Expr) -> Result<Type, Box<dyn Error>> {
             (TokenType::LessEqual, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a <= b)),
             (TokenType::EqualEqual, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a == b)),
             (TokenType::BangEqual, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a != b)),
-            (TokenType::Plus, Type::String(a), Type::String(b)) => {
-                Ok(Type::String(format!("{}{}", a, b)))
-            }
             (TokenType::EqualEqual, Type::String(a), Type::String(b)) => Ok(Type::Boolean(a == b)),
             (TokenType::BangEqual, Type::String(a), Type::String(b)) => Ok(Type::Boolean(a != b)),
             (TokenType::EqualEqual, _, _) => Ok(Type::Boolean(false)),
