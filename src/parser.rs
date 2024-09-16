@@ -1,8 +1,9 @@
 use std::{error::Error, fmt::Display, io::BufRead, iter::Peekable};
 
 use crate::{
-    errors::ParsingError,
+    errors::{ParsingError, TokenError},
     scanner::{Scanner, Token, TokenType},
+    utils::StopOnFirstErrorIterator,
 };
 
 /* Grammar:
@@ -17,9 +18,9 @@ primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression "
 
 */
 
-pub struct Parser<T>
+pub struct Parser<T, E>
 where
-    T: Iterator<Item = Token>,
+    T: Iterator<Item = Result<Token, E>>,
 {
     tokens: Peekable<T>,
     errors: Option<Vec<String>>,
@@ -40,26 +41,24 @@ macro_rules! gramar_rule {
     };
 }
 
-impl<T> Parser<T>
+impl<T, E> Parser<T, E>
 where
-    T: Iterator<Item = Token>,
+    T: Iterator<Item = Result<Token, E>>,
 {
     pub fn new(tokens: T) -> Self {
-        let tokens = tokens.peekable();
         Parser {
-            tokens,
+            tokens: tokens.peekable(),
             errors: None,
         }
     }
 
-    pub fn build<R>(reader: R) -> Result<Self, Box<dyn Error>>
+    pub fn build<R>(_reader: R) -> Result<Self, Box<dyn Error>>
     where
         R: BufRead + 'static,
     {
-        let mut scanner = Scanner::new(reader);
-        let tokens = scanner.scan_tokens()?;
-
-        Ok(Parser::new(tokens.flatten()))
+        // let scanner = Scanner::new(reader);
+        Err("hello".into())
+        // Ok(Parser::new(scanner.scan_tokens()?))
     }
 
     pub fn parse(mut self) -> Result<Expr, ParsingError> {

@@ -21,6 +21,18 @@ impl From<&str> for ScanningError {
     }
 }
 
+impl From<Vec<TokenError>> for ScanningError {
+    fn from(value: Vec<TokenError>) -> Self {
+        ScanningError {
+            message: value
+                .into_iter()
+                .map(|i| i.message)
+                .collect::<Vec<_>>()
+                .join("\r"),
+        }
+    }
+}
+
 impl Display for ScanningError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.message)

@@ -10,6 +10,7 @@ pub mod errors;
 pub mod interpreter;
 pub mod parser;
 pub mod scanner;
+pub mod utils;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
