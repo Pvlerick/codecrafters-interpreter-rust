@@ -97,14 +97,20 @@ fn parse_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
     let mut scanner = Scanner::new(BufReader::new(file));
-    let parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
+    let tokens = scanner.scan_tokens();
 
-    match parser.parse() {
-        Ok(expr) => println!("{}", expr),
-        Err(error) => {
-            println!("{}", error);
-            std::process::exit(65);
+    match tokens {
+        Ok(tokens) => {
+            let parser = Parser::new(tokens);
+            match parser.parse() {
+                Ok(expr) => println!("{}", expr),
+                Err(error) => {
+                    println!("{}", error);
+                    std::process::exit(65);
+                }
+            }
         }
+        Err(error) => println!("{}", error),
     }
 }
 
@@ -112,13 +118,29 @@ fn evaluate_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
     let mut scanner = Scanner::new(BufReader::new(file));
-    let parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
-    let interpreter = Interpreter::new(parser.parse().unwrap());
-    match interpreter.evaluate() {
-        Ok(res) => println!("{}", res),
-        Err(e) => {
-            eprintln!("{}", e);
-            std::process::exit(70);
+    let tokens = scanner.scan_tokens();
+
+    match tokens {
+        Ok(tokens) => {
+            let parser = Parser::new(tokens);
+            match parser.parse() {
+                Ok(expr) => {
+                    let interpreter = Interpreter::new(expr);
+
+                    match interpreter.evaluate() {
+                        Ok(res) => println!("{}", res),
+                        Err(e) => {
+                            eprintln!("{}", e);
+                            std::process::exit(70);
+                        }
+                    }
+                }
+                Err(error) => {
+                    println!("{}", error);
+                    std::process::exit(65);
+                }
+            }
         }
+        Err(error) => println!("{}", error),
     }
 }

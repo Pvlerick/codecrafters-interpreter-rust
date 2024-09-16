@@ -1,8 +1,8 @@
-use std::{error::Error, fmt::Display, io::BufRead, iter::Peekable};
+use std::{error::Error, fmt::Display, io::BufRead};
 
 use crate::{
-    errors::{ParsingError, TokenError},
-    scanner::{Scanner, Token, TokenType},
+    errors::ParsingError,
+    scanner::{Token, TokenType},
     utils::StopOnFirstErrorIterator,
 };
 
@@ -21,22 +21,33 @@ primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression "
 pub struct Parser<T, E>
 where
     T: Iterator<Item = Result<Token, E>>,
+    E: Error,
 {
-    tokens: Peekable<T>,
+    tokens: StopOnFirstErrorIterator<T, Token, E>,
+    peeked: Option<Token>,
     errors: Option<Vec<String>>,
 }
 
 macro_rules! gramar_rule {
     ($name:ident, $base:ident, $token_types:expr) => {
-        fn $name(&mut self) -> Result<Expr, ()> {
+        fn $name(&mut self) -> Result<Option<Expr>, E> {
             let mut expr = self.$base()?;
 
-            while let Some(operator) = self.next_matches($token_types) {
-                let right = self.$base()?;
-                expr = Expr::binary(operator, expr, right);
-            }
+            match expr {
+                Some(_) => {
+                    while let Some(operator) = self.peek_matches($token_types)? {
+                        match self.$base()? {
+                            Some(right) => {
+                                expr = Some(Expr::binary(operator, expr.unwrap(), right))
+                            }
+                            None => return Ok(None),
+                        }
+                    }
 
-            Ok(expr)
+                    Ok(expr)
+                }
+                None => Ok(None),
+            }
         }
     };
 }
@@ -44,10 +55,12 @@ macro_rules! gramar_rule {
 impl<T, E> Parser<T, E>
 where
     T: Iterator<Item = Result<Token, E>>,
+    E: Error + 'static,
 {
     pub fn new(tokens: T) -> Self {
         Parser {
-            tokens: tokens.peekable(),
+            tokens: StopOnFirstErrorIterator::new(tokens),
+            peeked: None,
             errors: None,
         }
     }
@@ -61,10 +74,14 @@ where
         // Ok(Parser::new(scanner.scan_tokens()?))
     }
 
-    pub fn parse(mut self) -> Result<Expr, ParsingError> {
+    pub fn parse(mut self) -> Result<Expr, Box<dyn Error>> {
         match self.expression() {
-            Ok(e) => Ok(e),
-            Err(_) => Err(self.errors.unwrap_or_else(|| Vec::<String>::new()).into()),
+            Ok(Some(e)) => Ok(e),
+            Ok(None) => Err(Box::new(ParsingError::from(
+                self.errors.unwrap_or_else(|| Vec::<String>::new()),
+            ))),
+            // Ok(None) => Err(self.errors.unwrap_or_else(|| Vec::<String>::new()).into()),
+            Err(e) => Err(Box::new(e)),
         }
     }
 
@@ -73,20 +90,20 @@ where
         // self.synchronize();
     }
 
-    #[allow(dead_code)]
-    fn synchronize(&mut self) {
-        use TokenType::*;
-        println!("synchronizing...");
-        while let Some(token_type) = self.tokens.peek().map(|i| i.token_type) {
-            match token_type {
-                Semicolon | Class | For | Fun | If | Print | Return | Var | While => {}
-                _ => _ = self.tokens.next(),
-            }
-        }
-        println!("done.");
-    }
+    // #[allow(dead_code)]
+    // fn synchronize(&mut self) {
+    //     use TokenType::*;
+    //     println!("synchronizing...");
+    //     while let Some(token_type) = self.tokens.peek().map(|i| i.token_type) {
+    //         match token_type {
+    //             Semicolon | Class | For | Fun | If | Print | Return | Var | While => {}
+    //             _ => _ = self.tokens.next(),
+    //         }
+    //     }
+    //     println!("done.");
+    // }
 
-    pub fn expression(&mut self) -> Result<Expr, ()> {
+    pub fn expression(&mut self) -> Result<Option<Expr>, E> {
         self.equality()
     }
 
@@ -108,42 +125,69 @@ where
     gramar_rule!(term, factor, [TokenType::Minus, TokenType::Plus]);
     gramar_rule!(factor, unary, [TokenType::Slash, TokenType::Star]);
 
-    fn unary(&mut self) -> Result<Expr, ()> {
+    fn unary(&mut self) -> Result<Option<Expr>, E> {
         use TokenType::*;
-        if let Some(operator) = self.next_matches([Bang, Minus]) {
-            let right = self.unary()?;
-            return Ok(Expr::unary(operator, right));
+        if let Some(operator) = self.peek_matches([Bang, Minus])? {
+            return match self.unary()? {
+                Some(right) => Ok(Some(Expr::unary(operator, right))),
+                None => Ok(None),
+            };
         }
 
         self.primary()
     }
 
-    fn primary(&mut self) -> Result<Expr, ()> {
+    fn primary(&mut self) -> Result<Option<Expr>, E> {
         if let Some(token) = self.tokens.next() {
             use TokenType::*;
             match token.token_type {
-                False | True | Nil | Number | String => return Ok(Expr::literal(token)),
+                False | True | Nil | Number | String => return Ok(Some(Expr::literal(token))),
                 LeftParenthesis => {
                     let expr = self.expression()?;
-                    if let Some(_) = self.next_matches(RightParenthesis) {
-                        return Ok(Expr::grouping(expr));
-                    } else {
-                        self.error("Expect ')' after expression.".to_string());
-                        Err(())
+                    match expr {
+                        Some(expr) => {
+                            if let Some(_) = self.peek_matches(RightParenthesis)? {
+                                return Ok(Some(Expr::grouping(expr)));
+                            } else {
+                                self.error("Expect ')' after expression.".to_string());
+                                Ok(None)
+                            }
+                        }
+                        None => Ok(None),
                     }
                 }
                 _ => {
                     self.error("".to_string());
-                    Err(())
+                    Ok(None)
                 }
             }
         } else {
-            Ok(Expr::literal(Token::new(TokenType::EOF, "", 0)))
+            Ok(Some(Expr::literal(Token::new(TokenType::EOF, "", 0))))
         }
     }
 
-    fn next_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Option<Token> {
-        self.tokens.next_if(|i| matcher.matches(&i.token_type))
+    fn next(&mut self) -> Result<Option<Token>, E> {
+        match self.peeked {
+            Some(_) => Ok(self.peeked.take()),
+            None => match self.tokens.next() {
+                Some(token) => Ok(Some(token)),
+                None => match self.tokens.error.take() {
+                    Some(e) => Err(e),
+                    None => Ok(None),
+                },
+            },
+        }
+    }
+
+    fn peek_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Result<Option<Token>, E> {
+        match &self.peeked {
+            Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.take()),
+            Some(_) => Ok(None),
+            None => {
+                self.peeked = self.tokens.next();
+                self.peek_matches(matcher)
+            }
+        }
     }
 }
 

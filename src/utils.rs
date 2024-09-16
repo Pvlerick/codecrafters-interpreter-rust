@@ -3,7 +3,7 @@ where
     T: Iterator<Item = Result<U, E>>,
 {
     inner: T,
-    error: Option<E>,
+    pub error: Option<E>,
 }
 
 impl<T, U, E> StopOnFirstErrorIterator<T, U, E>
@@ -55,7 +55,12 @@ mod test {
         assert_eq!(Some(1), sut.next());
         assert_eq!(Some(2), sut.next());
         assert_eq!(None, sut.next());
+        let err = sut.error.take();
+        assert!(err.is_some());
+        assert_eq!(Some("foo"), err);
+        assert_eq!(Some(3), sut.next());
+        assert_eq!(None, sut.next());
         assert!(sut.error.is_some());
-        assert_eq!(Some("foo"), sut.error);
+        assert_eq!(Some("bar"), sut.error);
     }
 }

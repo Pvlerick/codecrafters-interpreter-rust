@@ -10,9 +10,7 @@ fn parser_boolean() {
     let mut scanner = Scanner::new(tmp_file.reader());
     let tokens = scanner.scan_tokens();
     assert!(tokens.is_ok());
-    let tokens = tokens.unwrap().collect::<Vec<_>>();
-    assert!(tokens.iter().all(|i| i.is_ok()));
-    let parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
+    let parser = Parser::new(tokens.unwrap());
     let res = parser.parse();
     assert!(res.is_ok());
     assert_eq!("true", res.unwrap().to_string());
@@ -24,9 +22,7 @@ fn parser_number() {
     let mut scanner = Scanner::new(tmp_file.reader());
     let tokens = scanner.scan_tokens();
     assert!(tokens.is_ok());
-    let tokens = tokens.unwrap().collect::<Vec<_>>();
-    assert!(tokens.iter().all(|i| i.is_ok()));
-    let parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
+    let parser = Parser::new(tokens.unwrap());
     let res = parser.parse();
     assert!(res.is_ok());
     assert_eq!("123.456", res.unwrap().to_string());
@@ -38,9 +34,7 @@ fn parser_expression() {
     let mut scanner = Scanner::new(tmp_file.reader());
     let tokens = scanner.scan_tokens();
     assert!(tokens.is_ok());
-    let tokens = tokens.unwrap().collect::<Vec<_>>();
-    assert!(tokens.iter().all(|i| i.is_ok()));
-    let parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
+    let parser = Parser::new(tokens.unwrap());
     let res = parser.parse();
     assert!(res.is_ok());
     assert_eq!("(group (!= 12.0 13.0))", res.unwrap().to_string());
@@ -50,7 +44,8 @@ fn parser_expression() {
 fn parser_empty() {
     let mut tmp_file = TempFile::with_content("");
     let mut scanner = Scanner::new(tmp_file.reader());
-    let parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let tokens = scanner.scan_tokens();
+    let parser = Parser::new(tokens.unwrap());
     let res = parser.parse();
     assert!(res.is_err());
     // CodeCrafter wants this, but the book says otherwise
@@ -62,7 +57,8 @@ fn parser_empty() {
 fn parser_invalid_grammar() {
     let mut tmp_file = TempFile::with_content("(false 123.456 \"test\"");
     let mut scanner = Scanner::new(tmp_file.reader());
-    let parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let tokens = scanner.scan_tokens();
+    let parser = Parser::new(tokens.unwrap());
     let res = parser.parse();
     assert!(res.is_err());
     assert_eq!(
@@ -79,7 +75,8 @@ var a = bleh;
 beh"#,
     );
     let mut scanner = Scanner::new(tmp_file.reader());
-    let parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let tokens = scanner.scan_tokens();
+    let parser = Parser::new(tokens.unwrap());
     let res = parser.parse();
     assert!(res.is_err());
     let error = res.unwrap_err();
