@@ -138,31 +138,33 @@ where
     }
 
     fn primary(&mut self) -> Result<Option<Expr>, E> {
-        if let Some(token) = self.tokens.next() {
-            use TokenType::*;
-            match token.token_type {
-                False | True | Nil | Number | String => return Ok(Some(Expr::literal(token))),
-                LeftParenthesis => {
-                    let expr = self.expression()?;
-                    match expr {
-                        Some(expr) => {
-                            if let Some(_) = self.peek_matches(RightParenthesis)? {
-                                return Ok(Some(Expr::grouping(expr)));
-                            } else {
-                                self.error("Expect ')' after expression.".to_string());
-                                Ok(None)
+        match self.next() {
+            Ok(Some(token)) => {
+                use TokenType::*;
+                match token.token_type {
+                    False | True | Nil | Number | String => return Ok(Some(Expr::literal(token))),
+                    LeftParenthesis => {
+                        let expr = self.expression()?;
+                        match expr {
+                            Some(expr) => {
+                                if let Some(_) = self.peek_matches(RightParenthesis)? {
+                                    return Ok(Some(Expr::grouping(expr)));
+                                } else {
+                                    self.error("Expect ')' after expression.".to_string());
+                                    Ok(None)
+                                }
                             }
+                            None => Ok(None),
                         }
-                        None => Ok(None),
+                    }
+                    _ => {
+                        self.error("".to_string());
+                        Ok(None)
                     }
                 }
-                _ => {
-                    self.error("".to_string());
-                    Ok(None)
-                }
             }
-        } else {
-            Ok(Some(Expr::literal(Token::new(TokenType::EOF, "", 0))))
+            Ok(None) => Ok(Some(Expr::literal(Token::new(TokenType::EOF, "", 0)))),
+            Err(error) => Err(error),
         }
     }
 
