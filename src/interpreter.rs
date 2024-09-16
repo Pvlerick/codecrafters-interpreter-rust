@@ -1,8 +1,8 @@
-use std::{error::Error, fmt::Display};
+use std::{error::Error, fmt::Display, io::BufRead};
 
 use crate::{
-    parser::Expr,
-    scanner::{Literal, TokenType},
+    parser::{Expr, Parser},
+    scanner::{Literal, Scanner, TokenType},
 };
 
 pub struct Interpreter {
@@ -12,6 +12,18 @@ pub struct Interpreter {
 impl Interpreter {
     pub fn new(expression: Expr) -> Self {
         Interpreter { expression }
+    }
+
+    pub fn build<R>(reader: R) -> Result<Self, Box<dyn Error>>
+    where
+        R: BufRead + 'static,
+    {
+        let mut scanner = Scanner::new(reader);
+        let tokens = scanner.scan_tokens()?;
+        let parser = Parser::new(tokens.flatten());
+        let expression = parser.parse()?;
+
+        Ok(Interpreter::new(expression))
     }
 
     pub fn evaluate(&self) -> Result<String, Box<dyn Error>> {

@@ -1,6 +1,9 @@
-use std::{fmt::Display, iter::Peekable};
+use std::{error::Error, fmt::Display, io::BufRead, iter::Peekable};
 
-use crate::scanner::{Token, TokenType};
+use crate::{
+    errors::ParsingError,
+    scanner::{Scanner, Token, TokenType},
+};
 
 /* Grammar:
 
@@ -19,7 +22,7 @@ where
     T: Iterator<Item = Token>,
 {
     tokens: Peekable<T>,
-    error: Option<Vec<String>>,
+    errors: Option<Vec<String>>,
 }
 
 macro_rules! gramar_rule {
@@ -45,19 +48,29 @@ where
         let tokens = tokens.peekable();
         Parser {
             tokens,
-            error: None,
+            errors: None,
         }
     }
 
-    pub fn parse(&mut self) -> Result<Expr, &Vec<String>> {
+    pub fn build<R>(reader: R) -> Result<Self, Box<dyn Error>>
+    where
+        R: BufRead + 'static,
+    {
+        let mut scanner = Scanner::new(reader);
+        let tokens = scanner.scan_tokens()?;
+
+        Ok(Parser::new(tokens.flatten()))
+    }
+
+    pub fn parse(mut self) -> Result<Expr, ParsingError> {
         match self.expression() {
             Ok(e) => Ok(e),
-            Err(_) => Err(&self.error.as_ref().unwrap()),
+            Err(_) => Err(self.errors.unwrap_or_else(|| Vec::<String>::new()).into()),
         }
     }
 
     fn error(&mut self, error: String) {
-        self.error.get_or_insert(vec![]).push(error);
+        self.errors.get_or_insert(vec![]).push(error);
         // self.synchronize();
     }
 

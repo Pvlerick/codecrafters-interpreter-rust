@@ -6,6 +6,7 @@ use interpreter::Interpreter;
 use parser::Parser;
 use scanner::Scanner;
 
+pub mod errors;
 pub mod interpreter;
 pub mod parser;
 pub mod scanner;
@@ -95,14 +96,12 @@ fn parse_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
     let mut scanner = Scanner::new(BufReader::new(file));
-    let mut parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
+    let parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
 
     match parser.parse() {
         Ok(expr) => println!("{}", expr),
-        Err(errors) => {
-            for e in errors {
-                println!("{}", e);
-            }
+        Err(error) => {
+            println!("{}", error);
             std::process::exit(65);
         }
     }
@@ -112,7 +111,7 @@ fn evaluate_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
     let mut scanner = Scanner::new(BufReader::new(file));
-    let mut parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
+    let parser = Parser::new(scanner.scan_tokens().unwrap().filter_map(|i| i.ok()));
     let interpreter = Interpreter::new(parser.parse().unwrap());
     match interpreter.evaluate() {
         Ok(res) => println!("{}", res),

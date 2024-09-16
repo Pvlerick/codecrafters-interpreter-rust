@@ -1,4 +1,6 @@
-use std::{collections::VecDeque, error::Error, fmt::Display, io::BufRead};
+use std::{collections::VecDeque, fmt::Display, io::BufRead};
+
+use crate::errors::{ScanningError, TokenError};
 
 pub struct Scanner<R>
 where
@@ -19,10 +21,10 @@ where
 
     pub fn scan_tokens(
         &mut self,
-    ) -> Result<impl Iterator<Item = Result<Token, String>>, Box<dyn Error>> {
+    ) -> Result<impl Iterator<Item = Result<Token, TokenError>>, ScanningError> {
         match self.reader.take() {
             Some(reader) => Ok(TokensIterator::new(reader)),
-            None => Err(format!("Scanner's reader has already been consumed").into()),
+            None => Err("Scanner's reader has already been consumed".into()),
         }
     }
 }
@@ -155,7 +157,7 @@ impl TokensIterator {
         self.advance_while(|i| i != '\n', &mut String::new());
     }
 
-    fn handle_string(&mut self) -> Result<Token, String> {
+    fn handle_string(&mut self) -> Result<Token, TokenError> {
         let start_line = self.line;
         let mut buf = "\"".to_string();
         if self.advance_while(|i| i != '"', &mut buf) && self.next_is('"') {
@@ -167,11 +169,11 @@ impl TokensIterator {
                 start_line,
             ));
         } else {
-            return Err(format!("[line {}] Error: Unterminated string.", start_line));
+            return Err(format!("[line {}] Error: Unterminated string.", start_line).into());
         }
     }
 
-    fn handle_digit(&mut self, initial_digit: char) -> Result<Token, String> {
+    fn handle_digit(&mut self, initial_digit: char) -> Result<Token, TokenError> {
         let mut buf = initial_digit.to_string();
         self.advance_while(|i| i.is_digit(10), &mut buf);
         if self.peek_matches(|i| i == '.') && self.peek_peek_matches(|i| i.is_digit(10)) {
@@ -187,7 +189,7 @@ impl TokensIterator {
         ));
     }
 
-    fn handle_identifier_or_keyword(&mut self, initial_digit: char) -> Result<Token, String> {
+    fn handle_identifier_or_keyword(&mut self, initial_digit: char) -> Result<Token, TokenError> {
         let mut buf = initial_digit.to_string();
         self.advance_while(|i| i.is_alphanumeric() || i == '_', &mut buf);
         return match TokensIterator::is_keyword(buf.as_str()) {
@@ -205,7 +207,7 @@ impl TokensIterator {
 }
 
 impl Iterator for TokensIterator {
-    type Item = Result<Token, String>;
+    type Item = Result<Token, TokenError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         use TokenType::*;
@@ -259,7 +261,8 @@ impl Iterator for TokensIterator {
                     return Some(Err(format!(
                         "[line {}] Error: Unexpected character: {}",
                         self.line, character
-                    )))
+                    )
+                    .into()))
                 }
             };
         }

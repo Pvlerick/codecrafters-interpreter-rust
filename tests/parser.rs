@@ -12,7 +12,7 @@ fn parser_boolean() {
     assert!(tokens.is_ok());
     let tokens = tokens.unwrap().collect::<Vec<_>>();
     assert!(tokens.iter().all(|i| i.is_ok()));
-    let mut parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
+    let parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
     let res = parser.parse();
     assert!(res.is_ok());
     assert_eq!("true", res.unwrap().to_string());
@@ -26,7 +26,7 @@ fn parser_number() {
     assert!(tokens.is_ok());
     let tokens = tokens.unwrap().collect::<Vec<_>>();
     assert!(tokens.iter().all(|i| i.is_ok()));
-    let mut parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
+    let parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
     let res = parser.parse();
     assert!(res.is_ok());
     assert_eq!("123.456", res.unwrap().to_string());
@@ -40,7 +40,7 @@ fn parser_expression() {
     assert!(tokens.is_ok());
     let tokens = tokens.unwrap().collect::<Vec<_>>();
     assert!(tokens.iter().all(|i| i.is_ok()));
-    let mut parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
+    let parser = Parser::new(tokens.into_iter().map(|i| i.unwrap()));
     let res = parser.parse();
     assert!(res.is_ok());
     assert_eq!("(group (!= 12.0 13.0))", res.unwrap().to_string());
@@ -50,21 +50,25 @@ fn parser_expression() {
 fn parser_empty() {
     let mut tmp_file = TempFile::with_content("");
     let mut scanner = Scanner::new(tmp_file.reader());
-    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
     let res = parser.parse();
     assert!(res.is_err());
-    assert_eq!("", res.unwrap_err()[0]); //CodeCrafters requires this bht the book says
-                                         //otherwise...
+    // CodeCrafter wants this, but the book says otherwise
+    // https://craftinginterpreters.com/parsing-expressions.html#wiring-up-the-parser
+    assert_eq!("", format!("{}", res.unwrap_err()));
 }
 
 #[test]
 fn parser_invalid_grammar() {
     let mut tmp_file = TempFile::with_content("(false 123.456 \"test\"");
     let mut scanner = Scanner::new(tmp_file.reader());
-    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
     let res = parser.parse();
     assert!(res.is_err());
-    assert_eq!("Expect ')' after expression.", res.unwrap_err()[0]);
+    assert_eq!(
+        "Expect ')' after expression.",
+        format!("{}", res.unwrap_err())
+    );
 }
 
 #[test]
@@ -75,11 +79,11 @@ var a = bleh;
 beh"#,
     );
     let mut scanner = Scanner::new(tmp_file.reader());
-    let mut parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
+    let parser = Parser::new(scanner.scan_tokens().unwrap().map(|i| i.unwrap()));
     let res = parser.parse();
     assert!(res.is_err());
-    let errors = res.unwrap_err();
-    assert_eq!("Expect ')' after expression.", errors[0]);
+    let error = res.unwrap_err();
+    assert_eq!("Expect ')' after expression.", format!("{}", error));
     // assert_eq!("Expect ')' after expression.", errors[1]);
     // assert_eq!("Expect ')' after expression.", errors[2]);
 }
