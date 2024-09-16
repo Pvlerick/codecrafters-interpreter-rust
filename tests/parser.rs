@@ -1,16 +1,13 @@
 mod common;
 
-use interpreter_starter_rust::{parser::Parser, scanner::Scanner};
+use interpreter_starter_rust::parser::Parser;
 
 use crate::common::TempFile;
 
 #[test]
 fn parser_boolean() {
     let mut tmp_file = TempFile::with_content("true");
-    let mut scanner = Scanner::new(tmp_file.reader());
-    let tokens = scanner.scan_tokens();
-    assert!(tokens.is_ok());
-    let parser = Parser::new(tokens.unwrap());
+    let parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse();
     assert!(res.is_ok());
     assert_eq!("true", res.unwrap().to_string());
@@ -19,10 +16,7 @@ fn parser_boolean() {
 #[test]
 fn parser_number() {
     let mut tmp_file = TempFile::with_content("123.456");
-    let mut scanner = Scanner::new(tmp_file.reader());
-    let tokens = scanner.scan_tokens();
-    assert!(tokens.is_ok());
-    let parser = Parser::new(tokens.unwrap());
+    let parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse();
     assert!(res.is_ok());
     assert_eq!("123.456", res.unwrap().to_string());
@@ -31,10 +25,7 @@ fn parser_number() {
 #[test]
 fn parser_expression() {
     let mut tmp_file = TempFile::with_content("(12 != 13)");
-    let mut scanner = Scanner::new(tmp_file.reader());
-    let tokens = scanner.scan_tokens();
-    assert!(tokens.is_ok());
-    let parser = Parser::new(tokens.unwrap());
+    let parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse();
     assert!(res.is_ok());
     assert_eq!("(group (!= 12.0 13.0))", res.unwrap().to_string());
@@ -43,9 +34,7 @@ fn parser_expression() {
 #[test]
 fn parser_empty() {
     let mut tmp_file = TempFile::with_content("");
-    let mut scanner = Scanner::new(tmp_file.reader());
-    let tokens = scanner.scan_tokens();
-    let parser = Parser::new(tokens.unwrap());
+    let parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse();
     assert!(res.is_err());
     // CodeCrafter wants this, but the book says otherwise
@@ -56,9 +45,7 @@ fn parser_empty() {
 #[test]
 fn parser_invalid_grammar() {
     let mut tmp_file = TempFile::with_content("(false 123.456 \"test\"");
-    let mut scanner = Scanner::new(tmp_file.reader());
-    let tokens = scanner.scan_tokens();
-    let parser = Parser::new(tokens.unwrap());
+    let parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse();
     assert!(res.is_err());
     assert_eq!(
@@ -74,9 +61,7 @@ fn parser_invalid_grammar_multiple_error() {
 var a = bleh;
 beh"#,
     );
-    let mut scanner = Scanner::new(tmp_file.reader());
-    let tokens = scanner.scan_tokens();
-    let parser = Parser::new(tokens.unwrap());
+    let parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse();
     assert!(res.is_err());
     let error = res.unwrap_err();

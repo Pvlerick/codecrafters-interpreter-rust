@@ -19,9 +19,7 @@ where
         }
     }
 
-    pub fn scan_tokens(
-        &mut self,
-    ) -> Result<impl Iterator<Item = Result<Token, TokenError>>, ScanningError> {
+    pub fn scan_tokens(&mut self) -> Result<TokensIterator, ScanningError> {
         match self.reader.take() {
             Some(reader) => Ok(TokensIterator::new(reader)),
             None => Err("Scanner's reader has already been consumed".into()),

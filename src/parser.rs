@@ -1,8 +1,8 @@
 use std::{error::Error, fmt::Display, io::BufRead};
 
 use crate::{
-    errors::ParsingError,
-    scanner::{Token, TokenType},
+    errors::{ParsingError, TokenError},
+    scanner::{Scanner, Token, TokenType, TokensIterator},
     utils::StopOnFirstErrorIterator,
 };
 
@@ -18,19 +18,15 @@ primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression "
 
 */
 
-pub struct Parser<T, E>
-where
-    T: Iterator<Item = Result<Token, E>>,
-    E: Error,
-{
-    tokens: StopOnFirstErrorIterator<T, Token, E>,
+pub struct Parser {
+    tokens: StopOnFirstErrorIterator<TokensIterator, Token, TokenError>,
     peeked: Option<Token>,
     errors: Option<Vec<String>>,
 }
 
 macro_rules! gramar_rule {
     ($name:ident, $base:ident, $token_types:expr) => {
-        fn $name(&mut self) -> Result<Option<Expr>, E> {
+        fn $name(&mut self) -> Result<Option<Expr>, TokenError> {
             let mut expr = self.$base()?;
 
             match expr {
@@ -52,26 +48,23 @@ macro_rules! gramar_rule {
     };
 }
 
-impl<T, E> Parser<T, E>
-where
-    T: Iterator<Item = Result<Token, E>>,
-    E: Error + 'static,
-{
-    pub fn new(tokens: T) -> Self {
-        Parser {
+impl Parser {
+    pub fn new(tokens: TokensIterator) -> Self {
+        Self {
             tokens: StopOnFirstErrorIterator::new(tokens),
             peeked: None,
             errors: None,
         }
     }
 
-    pub fn build<R>(_reader: R) -> Result<Self, Box<dyn Error>>
+    pub fn build<R>(reader: R) -> Result<Self, Box<dyn Error>>
     where
         R: BufRead + 'static,
     {
-        // let scanner = Scanner::new(reader);
-        Err("hello".into())
-        // Ok(Parser::new(scanner.scan_tokens()?))
+        let mut scanner = Scanner::new(reader);
+        let tokens = scanner.scan_tokens()?;
+
+        Ok(Self::new(tokens))
     }
 
     pub fn parse(mut self) -> Result<Expr, Box<dyn Error>> {
@@ -103,7 +96,7 @@ where
     //     println!("done.");
     // }
 
-    pub fn expression(&mut self) -> Result<Option<Expr>, E> {
+    pub fn expression(&mut self) -> Result<Option<Expr>, TokenError> {
         self.equality()
     }
 
@@ -125,7 +118,7 @@ where
     gramar_rule!(term, factor, [TokenType::Minus, TokenType::Plus]);
     gramar_rule!(factor, unary, [TokenType::Slash, TokenType::Star]);
 
-    fn unary(&mut self) -> Result<Option<Expr>, E> {
+    fn unary(&mut self) -> Result<Option<Expr>, TokenError> {
         use TokenType::*;
         if let Some(operator) = self.peek_matches([Bang, Minus])? {
             return match self.unary()? {
@@ -137,7 +130,7 @@ where
         self.primary()
     }
 
-    fn primary(&mut self) -> Result<Option<Expr>, E> {
+    fn primary(&mut self) -> Result<Option<Expr>, TokenError> {
         match self.next() {
             Ok(Some(token)) => {
                 use TokenType::*;
@@ -168,7 +161,7 @@ where
         }
     }
 
-    fn next(&mut self) -> Result<Option<Token>, E> {
+    fn next(&mut self) -> Result<Option<Token>, TokenError> {
         match self.peeked {
             Some(_) => Ok(self.peeked.take()),
             None => match self.tokens.next() {
@@ -181,7 +174,10 @@ where
         }
     }
 
-    fn peek_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Result<Option<Token>, E> {
+    fn peek_matches<M: TokenTypeMatcher>(
+        &mut self,
+        matcher: M,
+    ) -> Result<Option<Token>, TokenError> {
         match &self.peeked {
             Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.take()),
             Some(_) => Ok(None),
