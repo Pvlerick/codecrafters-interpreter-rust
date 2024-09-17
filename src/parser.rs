@@ -96,7 +96,10 @@ impl Iterator for StatementsIterator {
     fn next(&mut self) -> Option<Self::Item> {
         match self.statement() {
             Ok(item) => item,
-            Err(_) => panic!("oh noe"),
+            Err(error) => {
+                self.errors.borrow_mut().push(format!("{}", error));
+                None
+            }
         }
     }
 }
@@ -130,6 +133,7 @@ impl StatementsIterator {
     pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
         match self.next_token() {
             Ok(Some(token)) => match token.token_type {
+                TokenType::EOF => Ok(None),
                 TokenType::Print => self.print_statement(),
                 _ => self.expression_statement(),
             },
@@ -217,7 +221,7 @@ impl StatementsIterator {
                         }
                     }
                     token_type => {
-                        self.error(format!("Unexpected token: {}", token_type));
+                        //self.error(format!("Unexpected token: {}", token_type));
                         Ok(None)
                     }
                 }

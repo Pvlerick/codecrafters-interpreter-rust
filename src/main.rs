@@ -137,9 +137,7 @@ fn evaluate_file(file_path: &str) {
             let parser = Parser::new(tokens);
             let mut interpreter = Interpreter::new(parser);
 
-            let mut stdout = stdout();
-            let mut stderr = stderr();
-            match interpreter.evaluate(&mut stdout, &mut stderr) {
+            match interpreter.evaluate(&mut stdout(), &mut stderr()) {
                 Ok(()) => {}
                 Err(e) => {
                     eprintln!("{}", e);

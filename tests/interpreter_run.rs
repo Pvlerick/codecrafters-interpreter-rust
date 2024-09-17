@@ -6,10 +6,10 @@ mod common;
 
 #[test]
 fn run_print_string() {
-    let mut tmp_file = TempFile::with_content("print \"foo\"");
+    let mut tmp_file = TempFile::with_content("print \"foo\";");
     let interpreter = Interpreter::build(tmp_file.reader()).unwrap();
     let mut output = Vec::new();
     let res = interpreter.run(&mut output);
     assert!(res.is_ok());
-    assert_eq!(output, b"foo");
+    assert_eq!("foo\n", String::from_utf8_lossy(&output));
 }

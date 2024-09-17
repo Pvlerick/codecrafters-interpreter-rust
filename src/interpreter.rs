@@ -43,8 +43,7 @@ impl Interpreter {
         match self.parser.take() {
             Some(mut parser) => {
                 for statement in parser.parse()? {
-                    let mut sink = sink();
-                    match self.execute(&statement, &mut sink)? {
+                    match self.execute(&statement, &mut sink())? {
                         Some(value) => {
                             writeln!(output, "{}", value)?;
                         }
