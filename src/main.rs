@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::File;
-use std::io::{self, stdout, BufReader, Write};
+use std::io::{self, stderr, stdout, BufReader, Write};
 
 use interpreter::Interpreter;
 use parser::Parser;
@@ -109,7 +109,7 @@ fn parse_file(file_path: &str) {
 
     match tokens {
         Ok(tokens) => {
-            let parser = Parser::new(tokens);
+            let mut parser = Parser::new(tokens);
             match parser.parse() {
                 Ok(statements) => {
                     for statement in statements {
@@ -135,23 +135,20 @@ fn evaluate_file(file_path: &str) {
     match tokens {
         Ok(tokens) => {
             let parser = Parser::new(tokens);
-            match parser.parse() {
-                Ok(expr) => {
-                    let interpreter = Interpreter::new(expr);
+            let mut interpreter = Interpreter::new(parser);
 
-                    let mut stdout = stdout();
-                    match interpreter.evaluate(&mut stdout) {
-                        Ok(()) => {}
-                        Err(e) => {
-                            eprintln!("{}", e);
-                            std::process::exit(70);
-                        }
-                    }
+            let mut stdout = stdout();
+            let mut stderr = stderr();
+            match interpreter.evaluate(&mut stdout, &mut stderr) {
+                Ok(()) => {}
+                Err(e) => {
+                    eprintln!("{}", e);
+                    std::process::exit(70);
                 }
-                Err(error) => {
-                    println!("{}", error);
-                    std::process::exit(65);
-                }
+            }
+
+            if interpreter.has_errors {
+                std::process::exit(65);
             }
         }
         Err(error) => println!("{}", error),

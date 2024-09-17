@@ -5,18 +5,20 @@ use std::{
 };
 
 use crate::{
-    parser::{Expr, Parser, Statement, StatementsIterator},
+    parser::{Expr, Parser, Statement},
     scanner::{Literal, TokenType},
 };
 
 pub struct Interpreter {
-    statements: Option<StatementsIterator>,
+    parser: Option<Parser>,
+    pub has_errors: bool,
 }
 
 impl Interpreter {
-    pub fn new(statements: StatementsIterator) -> Self {
-        Interpreter {
-            statements: Some(statements),
+    pub fn new(parser: Parser) -> Self {
+        Self {
+            parser: Some(parser),
+            has_errors: false,
         }
     }
 
@@ -25,30 +27,38 @@ impl Interpreter {
         R: BufRead + 'static,
     {
         let parser = Parser::build(reader)?;
-        let statements = parser.parse()?;
 
-        Ok(Interpreter::new(statements))
+        Ok(Interpreter::new(parser))
     }
 
-    pub fn evaluate<T>(mut self, output: &mut T) -> Result<(), Box<dyn Error>>
+    pub fn evaluate<T, U>(
+        &mut self,
+        output: &mut T,
+        err_output: &mut U,
+    ) -> Result<(), Box<dyn Error>>
     where
         T: Write,
+        U: Write,
     {
-        println!("FOO");
-        match self.statements.take() {
-            Some(statements) => {
-                println!("BAR");
-                for statement in statements {
-                    println!("BAZ");
+        match self.parser.take() {
+            Some(mut parser) => {
+                for statement in parser.parse()? {
                     let mut sink = sink();
-                    match self.execute(statement, &mut sink)? {
+                    match self.execute(&statement, &mut sink)? {
                         Some(value) => {
                             writeln!(output, "{}", value)?;
                         }
                         None => {}
                     }
                 }
-                println!("END");
+
+                if let Some(errors) = parser.errors() {
+                    self.has_errors = true;
+                    for error in errors {
+                        writeln!(err_output, "{}", error)?;
+                    }
+                }
+
                 Ok(())
             }
             None => Err("Interpreter's statements have already been consumed".into()),
@@ -59,10 +69,10 @@ impl Interpreter {
     where
         T: Write,
     {
-        match self.statements.take() {
-            Some(statements) => {
-                for statement in statements {
-                    self.execute(statement, output)?;
+        match self.parser.take() {
+            Some(mut parser) => {
+                for statement in parser.parse()? {
+                    self.execute(&statement, output)?;
                 }
                 Ok(())
             }
@@ -72,7 +82,7 @@ impl Interpreter {
 
     fn execute<T>(
         &self,
-        statement: Statement,
+        statement: &Statement,
         output: &mut T,
     ) -> Result<Option<Type>, Box<dyn Error>>
     where

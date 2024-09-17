@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, io::BufRead};
+use std::{cell::RefCell, error::Error, fmt::Display, io::BufRead, rc::Rc};
 
 use crate::{
     errors::TokenError,
@@ -25,24 +25,25 @@ primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression "
 
 pub struct Parser {
     tokens: Option<TokensIterator>,
+    errors: Rc<RefCell<Vec<String>>>,
 }
 
 macro_rules! gramar_rule {
     ($name:ident, $base:ident, $token_types:expr) => {
         fn $name(&mut self) -> Result<Option<Expr>, TokenError> {
-            println!("in macro");
+            let mut ret_expr: Expr;
 
             match self.$base()? {
-                Some(mut expr) => {
-                    println!("before loop");
+                Some(expr) => {
+                    ret_expr = expr;
                     while let Some(operator) = self.peek_matches($token_types)? {
                         match self.$base()? {
-                            Some(right) => expr = Expr::binary(operator, expr, right),
+                            Some(right) => ret_expr = Expr::binary(operator, ret_expr, right),
                             None => return Ok(None),
                         }
                     }
 
-                    Ok(Some(expr))
+                    Ok(Some(ret_expr))
                 }
                 None => Ok(None),
             }
@@ -54,6 +55,7 @@ impl Parser {
     pub fn new(tokens: TokensIterator) -> Self {
         Self {
             tokens: Some(tokens),
+            errors: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -67,10 +69,17 @@ impl Parser {
         Ok(Self::new(tokens))
     }
 
-    pub fn parse(mut self) -> Result<StatementsIterator, Box<dyn Error>> {
+    pub fn parse(&mut self) -> Result<StatementsIterator, Box<dyn Error>> {
         match self.tokens.take() {
-            Some(tokens) => Ok(StatementsIterator::new(tokens)),
+            Some(tokens) => Ok(StatementsIterator::new(tokens, self.errors.clone())),
             None => Err("Parser's tokens have already been consumed".into()),
+        }
+    }
+
+    pub fn errors(&self) -> Option<Vec<String>> {
+        match self.tokens {
+            Some(_) => None, // Parsing didn't occur yet
+            None => Some(self.errors.take()),
         }
     }
 }
@@ -78,7 +87,7 @@ impl Parser {
 pub struct StatementsIterator {
     tokens: StopOnFirstErrorIterator<TokensIterator, Token, TokenError>,
     peeked: Option<Token>,
-    errors: Option<Vec<String>>,
+    errors: Rc<RefCell<Vec<String>>>,
 }
 
 impl Iterator for StatementsIterator {
@@ -93,17 +102,12 @@ impl Iterator for StatementsIterator {
 }
 
 impl StatementsIterator {
-    pub fn new(tokens: TokensIterator) -> Self {
+    pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Vec<String>>>) -> Self {
         Self {
             tokens: StopOnFirstErrorIterator::new(tokens),
             peeked: None,
-            errors: None,
+            errors,
         }
-    }
-
-    fn error(&mut self, error: String) {
-        self.errors.get_or_insert(vec![]).push(error);
-        // self.synchronize();
     }
 
     // #[allow(dead_code)]
@@ -118,6 +122,10 @@ impl StatementsIterator {
     //     }
     //     println!("done.");
     // }
+
+    fn error(&mut self, msg: String) {
+        self.errors.borrow_mut().push(msg);
+    }
 
     pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
         match self.next_token() {
@@ -147,10 +155,7 @@ impl StatementsIterator {
                 self.consume_semicolon()?;
                 Ok(Some(Statement::Expression(expr)))
             }
-            Ok(None) => {
-                println!("none here");
-                Ok(None)
-            }
+            Ok(None) => Ok(None),
             Err(error) => Err(error),
         }
     }
@@ -194,7 +199,9 @@ impl StatementsIterator {
             Ok(Some(token)) => {
                 use TokenType::*;
                 match token.token_type {
-                    False | True | Nil | Number | String => return Ok(Some(Expr::literal(token))),
+                    False | True | Nil | Number | String => {
+                        return Ok(Some(Expr::literal(token)));
+                    }
                     LeftParenthesis => {
                         let expr = self.expression()?;
                         match expr {
@@ -209,8 +216,8 @@ impl StatementsIterator {
                             None => Ok(None),
                         }
                     }
-                    _ => {
-                        self.error("".to_string());
+                    token_type => {
+                        self.error(format!("Unexpected token: {}", token_type));
                         Ok(None)
                     }
                 }
@@ -248,7 +255,6 @@ impl StatementsIterator {
     }
 
     fn consume_semicolon(&mut self) -> Result<(), TokenError> {
-        println!("semi here?");
         match self.peek_matches(TokenType::Semicolon) {
             Ok(Some(_)) => Ok(()),
             Ok(None) => Err("Expect ';' after expression.".to_owned().into()),
