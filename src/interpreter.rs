@@ -1,17 +1,23 @@
-use std::{error::Error, fmt::Display, io::BufRead};
+use std::{
+    error::Error,
+    fmt::Display,
+    io::{sink, BufRead, Write},
+};
 
 use crate::{
-    parser::{Expr, Parser},
+    parser::{Expr, Parser, Statement, StatementsIterator},
     scanner::{Literal, TokenType},
 };
 
 pub struct Interpreter {
-    expression: Expr,
+    statements: Option<StatementsIterator>,
 }
 
 impl Interpreter {
-    pub fn new(expression: Expr) -> Self {
-        Interpreter { expression }
+    pub fn new(statements: StatementsIterator) -> Self {
+        Interpreter {
+            statements: Some(statements),
+        }
     }
 
     pub fn build<R>(reader: R) -> Result<Self, Box<dyn Error>>
@@ -19,13 +25,66 @@ impl Interpreter {
         R: BufRead + 'static,
     {
         let parser = Parser::build(reader)?;
-        let expression = parser.parse()?;
+        let statements = parser.parse()?;
 
-        Ok(Interpreter::new(expression))
+        Ok(Interpreter::new(statements))
     }
 
-    pub fn evaluate(&self) -> Result<String, Box<dyn Error>> {
-        eval(&self.expression).map(|i| i.to_string())
+    pub fn evaluate<T>(mut self, output: &mut T) -> Result<(), Box<dyn Error>>
+    where
+        T: Write,
+    {
+        println!("FOO");
+        match self.statements.take() {
+            Some(statements) => {
+                println!("BAR");
+                for statement in statements {
+                    println!("BAZ");
+                    let mut sink = sink();
+                    match self.execute(statement, &mut sink)? {
+                        Some(value) => {
+                            writeln!(output, "{}", value)?;
+                        }
+                        None => {}
+                    }
+                }
+                println!("END");
+                Ok(())
+            }
+            None => Err("Interpreter's statements have already been consumed".into()),
+        }
+    }
+
+    pub fn run<T>(mut self, output: &mut T) -> Result<(), Box<dyn Error>>
+    where
+        T: Write,
+    {
+        match self.statements.take() {
+            Some(statements) => {
+                for statement in statements {
+                    self.execute(statement, output)?;
+                }
+                Ok(())
+            }
+            None => Err("Interpreter's statements have already been consumed".into()),
+        }
+    }
+
+    fn execute<T>(
+        &self,
+        statement: Statement,
+        output: &mut T,
+    ) -> Result<Option<Type>, Box<dyn Error>>
+    where
+        T: Write,
+    {
+        match statement {
+            Statement::Print(expr) => {
+                writeln!(output, "{}", eval(&expr)?)?;
+                Ok(None)
+            }
+            Statement::Expression(expr) => Ok(Some(eval(&expr)?)),
+        }
     }
 }
 

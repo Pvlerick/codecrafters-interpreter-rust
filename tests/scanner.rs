@@ -7,9 +7,9 @@ use crate::common::TempFile;
 #[test]
 fn scanner_string_literal() {
     let mut tmp_file = TempFile::with_content("foo \"hello\"");
-    let mut scanner = Scanner::new(tmp_file.reader());
+    let scanner = Scanner::new(tmp_file.reader());
     let tokens = scanner
-        .scan_tokens()
+        .scan()
         .unwrap()
         .map(|i| i.unwrap())
         .collect::<Vec<_>>();
@@ -32,9 +32,9 @@ fn scanner_string_literal() {
 #[test]
 fn scanner_digit_literal() {
     let mut tmp_file = TempFile::with_content("bar 123.456");
-    let mut scanner = Scanner::new(tmp_file.reader());
+    let scanner = Scanner::new(tmp_file.reader());
     let tokens = scanner
-        .scan_tokens()
+        .scan()
         .unwrap()
         .map(|i| i.unwrap())
         .collect::<Vec<_>>();
@@ -52,9 +52,9 @@ fn scanner_digit_literal() {
 #[test]
 fn scanner_numbers() {
     let mut tmp_file = TempFile::with_content("1 + 2");
-    let mut scanner = Scanner::new(tmp_file.reader());
+    let scanner = Scanner::new(tmp_file.reader());
     let tokens = scanner
-        .scan_tokens()
+        .scan()
         .unwrap()
         .map(|i| i.unwrap())
         .collect::<Vec<_>>();
@@ -65,9 +65,9 @@ fn scanner_numbers() {
 #[test]
 fn scanner_identifiers() {
     let mut tmp_file = TempFile::with_content("test");
-    let mut scanner = Scanner::new(tmp_file.reader());
+    let scanner = Scanner::new(tmp_file.reader());
     let tokens = scanner
-        .scan_tokens()
+        .scan()
         .unwrap()
         .map(|i| i.unwrap())
         .collect::<Vec<_>>();
@@ -78,9 +78,9 @@ fn scanner_identifiers() {
 #[test]
 fn scanner_keywords() {
     let mut tmp_file = TempFile::with_content("true false class");
-    let mut scanner = Scanner::new(tmp_file.reader());
+    let scanner = Scanner::new(tmp_file.reader());
     let tokens = scanner
-        .scan_tokens()
+        .scan()
         .unwrap()
         .map(|i| i.unwrap())
         .collect::<Vec<_>>();

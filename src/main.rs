@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::File;
-use std::io::{self, BufReader, Write};
+use std::io::{self, stdout, BufReader, Write};
 
 use interpreter::Interpreter;
 use parser::Parser;
@@ -43,6 +43,14 @@ fn main() {
 
             evaluate_file(&args[2]);
         }
+        Some("run") => {
+            if args.len() < 3 {
+                writeln!(io::stderr(), "Usage: {} evaluate <file_path>", args[0]).unwrap();
+                return;
+            }
+
+            evaluate_file(&args[2]);
+        }
         Some(command) => {
             eprintln!("Unknown command: {}", command);
             std::process::exit(64);
@@ -55,8 +63,8 @@ fn tokenize_file(file_path: &str) {
 
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
-    let mut scanner = Scanner::new(BufReader::new(file));
-    for item in scanner.scan_tokens().expect("failed to scan tokens") {
+    let scanner = Scanner::new(BufReader::new(file));
+    for item in scanner.scan().expect("failed to scan tokens") {
         match item {
             Ok(token) => println!("{}", token),
             Err(message) => {
@@ -81,8 +89,8 @@ fn tokenize_repl() {
             .read_line(&mut buf)
             .expect("cannot read REPL line");
 
-        let mut scanner = Scanner::new(BufReader::new(buf.leak().as_bytes()));
-        for item in scanner.scan_tokens().expect("failed to scan tokens") {
+        let scanner = Scanner::new(BufReader::new(buf.leak().as_bytes()));
+        for item in scanner.scan().expect("failed to scan tokens") {
             match item {
                 Ok(token) => println!("{}", token),
                 Err(message) => {
@@ -96,14 +104,18 @@ fn tokenize_repl() {
 fn parse_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
-    let mut scanner = Scanner::new(BufReader::new(file));
-    let tokens = scanner.scan_tokens();
+    let scanner = Scanner::new(BufReader::new(file));
+    let tokens = scanner.scan();
 
     match tokens {
         Ok(tokens) => {
             let parser = Parser::new(tokens);
             match parser.parse() {
-                Ok(expr) => println!("{}", expr),
+                Ok(statements) => {
+                    for statement in statements {
+                        println!("{}", statement);
+                    }
+                }
                 Err(error) => {
                     println!("{}", error);
                     std::process::exit(65);
@@ -117,8 +129,8 @@ fn parse_file(file_path: &str) {
 fn evaluate_file(file_path: &str) {
     let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
 
-    let mut scanner = Scanner::new(BufReader::new(file));
-    let tokens = scanner.scan_tokens();
+    let scanner = Scanner::new(BufReader::new(file));
+    let tokens = scanner.scan();
 
     match tokens {
         Ok(tokens) => {
@@ -127,8 +139,9 @@ fn evaluate_file(file_path: &str) {
                 Ok(expr) => {
                     let interpreter = Interpreter::new(expr);
 
-                    match interpreter.evaluate() {
-                        Ok(res) => println!("{}", res),
+                    let mut stdout = stdout();
+                    match interpreter.evaluate(&mut stdout) {
+                        Ok(()) => {}
                         Err(e) => {
                             eprintln!("{}", e);
                             std::process::exit(70);

@@ -1,13 +1,18 @@
 use std::{error::Error, fmt::Display, io::BufRead};
 
 use crate::{
-    errors::{ParsingError, TokenError},
+    errors::TokenError,
     scanner::{Scanner, Token, TokenType, TokensIterator},
     utils::StopOnFirstErrorIterator,
 };
 
 /* Grammar:
 
+
+program        → statement* EOF ;
+statement      → exprStmt | printStmt ;
+exprStmt       → expression ";" ;
+printStmt      → "print" expression ";" ;
 expression     → equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
@@ -19,28 +24,25 @@ primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression "
 */
 
 pub struct Parser {
-    tokens: StopOnFirstErrorIterator<TokensIterator, Token, TokenError>,
-    peeked: Option<Token>,
-    errors: Option<Vec<String>>,
+    tokens: Option<TokensIterator>,
 }
 
 macro_rules! gramar_rule {
     ($name:ident, $base:ident, $token_types:expr) => {
         fn $name(&mut self) -> Result<Option<Expr>, TokenError> {
-            let mut expr = self.$base()?;
+            println!("in macro");
 
-            match expr {
-                Some(_) => {
+            match self.$base()? {
+                Some(mut expr) => {
+                    println!("before loop");
                     while let Some(operator) = self.peek_matches($token_types)? {
                         match self.$base()? {
-                            Some(right) => {
-                                expr = Some(Expr::binary(operator, expr.unwrap(), right))
-                            }
+                            Some(right) => expr = Expr::binary(operator, expr, right),
                             None => return Ok(None),
                         }
                     }
 
-                    Ok(expr)
+                    Ok(Some(expr))
                 }
                 None => Ok(None),
             }
@@ -51,9 +53,7 @@ macro_rules! gramar_rule {
 impl Parser {
     pub fn new(tokens: TokensIterator) -> Self {
         Self {
-            tokens: StopOnFirstErrorIterator::new(tokens),
-            peeked: None,
-            errors: None,
+            tokens: Some(tokens),
         }
     }
 
@@ -61,20 +61,43 @@ impl Parser {
     where
         R: BufRead + 'static,
     {
-        let mut scanner = Scanner::new(reader);
-        let tokens = scanner.scan_tokens()?;
+        let scanner = Scanner::new(reader);
+        let tokens = scanner.scan()?;
 
         Ok(Self::new(tokens))
     }
 
-    pub fn parse(mut self) -> Result<Expr, Box<dyn Error>> {
-        match self.expression() {
-            Ok(Some(e)) => Ok(e),
-            Ok(None) => Err(Box::new(ParsingError::from(
-                self.errors.unwrap_or_else(|| Vec::<String>::new()),
-            ))),
-            // Ok(None) => Err(self.errors.unwrap_or_else(|| Vec::<String>::new()).into()),
-            Err(e) => Err(Box::new(e)),
+    pub fn parse(mut self) -> Result<StatementsIterator, Box<dyn Error>> {
+        match self.tokens.take() {
+            Some(tokens) => Ok(StatementsIterator::new(tokens)),
+            None => Err("Parser's tokens have already been consumed".into()),
+        }
+    }
+}
+
+pub struct StatementsIterator {
+    tokens: StopOnFirstErrorIterator<TokensIterator, Token, TokenError>,
+    peeked: Option<Token>,
+    errors: Option<Vec<String>>,
+}
+
+impl Iterator for StatementsIterator {
+    type Item = Statement;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.statement() {
+            Ok(item) => item,
+            Err(_) => panic!("oh noe"),
+        }
+    }
+}
+
+impl StatementsIterator {
+    pub fn new(tokens: TokensIterator) -> Self {
+        Self {
+            tokens: StopOnFirstErrorIterator::new(tokens),
+            peeked: None,
+            errors: None,
         }
     }
 
@@ -95,6 +118,42 @@ impl Parser {
     //     }
     //     println!("done.");
     // }
+
+    pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
+        match self.next_token() {
+            Ok(Some(token)) => match token.token_type {
+                TokenType::Print => self.print_statement(),
+                _ => self.expression_statement(),
+            },
+            Ok(None) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn print_statement(&mut self) -> Result<Option<Statement>, TokenError> {
+        match self.expression() {
+            Ok(Some(expr)) => {
+                self.consume_semicolon()?;
+                Ok(Some(Statement::Print(expr)))
+            }
+            Ok(None) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn expression_statement(&mut self) -> Result<Option<Statement>, TokenError> {
+        match self.expression() {
+            Ok(Some(expr)) => {
+                self.consume_semicolon()?;
+                Ok(Some(Statement::Expression(expr)))
+            }
+            Ok(None) => {
+                println!("none here");
+                Ok(None)
+            }
+            Err(error) => Err(error),
+        }
+    }
 
     pub fn expression(&mut self) -> Result<Option<Expr>, TokenError> {
         self.equality()
@@ -131,7 +190,7 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Option<Expr>, TokenError> {
-        match self.next() {
+        match self.next_token() {
             Ok(Some(token)) => {
                 use TokenType::*;
                 match token.token_type {
@@ -161,7 +220,7 @@ impl Parser {
         }
     }
 
-    fn next(&mut self) -> Result<Option<Token>, TokenError> {
+    fn next_token(&mut self) -> Result<Option<Token>, TokenError> {
         match self.peeked {
             Some(_) => Ok(self.peeked.take()),
             None => match self.tokens.next() {
@@ -187,6 +246,15 @@ impl Parser {
             }
         }
     }
+
+    fn consume_semicolon(&mut self) -> Result<(), TokenError> {
+        println!("semi here?");
+        match self.peek_matches(TokenType::Semicolon) {
+            Ok(Some(_)) => Ok(()),
+            Ok(None) => Err("Expect ';' after expression.".to_owned().into()),
+            Err(error) => Err(error),
+        }
+    }
 }
 
 trait TokenTypeMatcher {
@@ -202,6 +270,22 @@ impl TokenTypeMatcher for TokenType {
 impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
     fn matches(&self, token_type: &TokenType) -> bool {
         self.contains(token_type)
+    }
+}
+
+#[derive(Debug)]
+pub enum Statement {
+    Print(Expr),
+    Expression(Expr),
+}
+
+impl Display for Statement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Statement::*;
+        match self {
+            Print(expr) => write!(f, "print {}", expr),
+            Expression(expr) => write!(f, "{}", expr),
+        }
     }
 }
 

@@ -19,7 +19,7 @@ where
         }
     }
 
-    pub fn scan_tokens(&mut self) -> Result<TokensIterator, ScanningError> {
+    pub fn scan(mut self) -> Result<TokensIterator, ScanningError> {
         match self.reader.take() {
             Some(reader) => Ok(TokensIterator::new(reader)),
             None => Err("Scanner's reader has already been consumed".into()),
@@ -72,7 +72,7 @@ impl TokensIterator {
             buffer.push_back(content.next());
         }
 
-        TokensIterator {
+        Self {
             has_reached_eof: false,
             content: Box::new(content),
             buffer,
