@@ -139,8 +139,8 @@ fn evaluate_file(file_path: &str) {
 
             match interpreter.evaluate(&mut stdout(), &mut stderr()) {
                 Ok(()) => {}
-                Err(e) => {
-                    eprintln!("{}", e);
+                Err(error) => {
+                    eprintln!("{}", error);
                     std::process::exit(70);
                 }
             }
@@ -166,8 +166,8 @@ fn run_file(file_path: &str) {
 
             match interpreter.run(&mut stdout(), &mut stderr()) {
                 Ok(()) => {}
-                Err(e) => {
-                    eprintln!("{}", e);
+                Err(error) => {
+                    eprintln!("{}", error);
                     std::process::exit(70);
                 }
             }

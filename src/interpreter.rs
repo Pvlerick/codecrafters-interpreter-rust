@@ -68,13 +68,8 @@ impl Interpreter {
             Some(mut parser) => {
                 for statement in parser.parse()? {
                     match self.execute(&statement, output)? {
-                        Some(value) => {
-                            println!("val: {}", value);
-                            writeln!(output, "{}", value)?;
-                        }
-                        None => {
-                            println!("no type");
-                        }
+                        Some(value) => writeln!(output, "{}", value)?,
+                        None => {}
                     }
                 }
 
