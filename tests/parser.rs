@@ -23,12 +23,21 @@ fn parser_number() {
 }
 
 #[test]
-fn parser_expression() {
+fn parser_expression_1() {
     let mut tmp_file = TempFile::with_content("(12 != 13)");
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_ok());
     assert_eq!("(group (!= 12.0 13.0))", format!("{}", res.unwrap()));
+}
+
+#[test]
+fn parser_expression_2() {
+    let mut tmp_file = TempFile::with_content("\"foo\"!=\"bar\"");
+    let mut parser = Parser::build(tmp_file.reader()).unwrap();
+    let res = parser.parse_expression();
+    assert!(res.is_ok());
+    assert_eq!("(!= foo bar)", format!("{}", res.unwrap()));
 }
 
 #[test]

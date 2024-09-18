@@ -110,11 +110,9 @@ fn parse_file(file_path: &str) {
     match tokens {
         Ok(tokens) => {
             let mut parser = Parser::new(tokens);
-            match parser.parse() {
-                Ok(statements) => {
-                    for statement in statements {
-                        println!("{}", statement);
-                    }
+            match parser.parse_expression() {
+                Ok(expr) => {
+                    println!("{}", expr);
                 }
                 Err(error) => {
                     println!("{}", error);
