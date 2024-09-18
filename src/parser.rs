@@ -221,7 +221,7 @@ impl StatementsIterator {
                         }
                     }
                     token_type => {
-                        //self.error(format!("Unexpected token: {}", token_type));
+                        self.error(format!("Unexpected token: {}", token_type));
                         Ok(None)
                     }
                 }

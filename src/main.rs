@@ -49,7 +49,7 @@ fn main() {
                 return;
             }
 
-            evaluate_file(&args[2]);
+            run_file(&args[2]);
         }
         Some(command) => {
             eprintln!("Unknown command: {}", command);
@@ -145,7 +145,34 @@ fn evaluate_file(file_path: &str) {
                 }
             }
 
-            if interpreter.has_errors {
+            if interpreter.has_parsing_errors {
+                std::process::exit(65);
+            }
+        }
+        Err(error) => println!("{}", error),
+    }
+}
+
+fn run_file(file_path: &str) {
+    let file = File::open(file_path).expect(format!("cannot open file {}", file_path).as_str());
+
+    let scanner = Scanner::new(BufReader::new(file));
+    let tokens = scanner.scan();
+
+    match tokens {
+        Ok(tokens) => {
+            let parser = Parser::new(tokens);
+            let mut interpreter = Interpreter::new(parser);
+
+            match interpreter.run(&mut stdout(), &mut stderr()) {
+                Ok(()) => {}
+                Err(e) => {
+                    eprintln!("{}", e);
+                    std::process::exit(70);
+                }
+            }
+
+            if interpreter.has_parsing_errors {
                 std::process::exit(65);
             }
         }
