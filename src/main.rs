@@ -116,7 +116,7 @@ fn parse_file(file_path: &str) {
                 }
                 Ok(None) => {}
                 Err(error) => {
-                    println!("{}", error);
+                    eprintln!("{}", error);
                     std::process::exit(65);
                 }
             }
