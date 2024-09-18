@@ -111,9 +111,10 @@ fn parse_file(file_path: &str) {
         Ok(tokens) => {
             let mut parser = Parser::new(tokens);
             match parser.parse_expression() {
-                Ok(expr) => {
+                Ok(Some(expr)) => {
                     println!("{}", expr);
                 }
+                Ok(None) => {}
                 Err(error) => {
                     println!("{}", error);
                     std::process::exit(65);

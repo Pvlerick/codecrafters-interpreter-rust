@@ -43,8 +43,13 @@ impl Interpreter {
         match self.parser.take() {
             Some(mut parser) => {
                 let expr = parser.parse_expression()?;
-                let result = Interpreter::eval(&expr)?;
-                write!(output, "{}", result)?;
+                match expr {
+                    Some(expr) => {
+                        let result = Interpreter::eval(&expr)?;
+                        write!(output, "{}", result)?;
+                    }
+                    None => {}
+                }
 
                 if let Some(errors) = parser.errors() {
                     self.has_parsing_errors = true;

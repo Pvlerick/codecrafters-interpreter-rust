@@ -76,12 +76,12 @@ impl Parser {
         }
     }
 
-    pub fn parse_expression(&mut self) -> Result<Expr, Box<dyn Error>> {
+    pub fn parse_expression(&mut self) -> Result<Option<Expr>, Box<dyn Error>> {
         match self.tokens.take() {
             Some(tokens) => {
                 match StatementsIterator::new(tokens, self.errors.clone()).next_expression() {
-                    Some(expr) => Ok(expr),
-                    None => Err("No expression found".into()),
+                    Some(expr) => Ok(Some(expr)),
+                    None => Err("No expression found.".into()),
                 }
             }
             None => Err("Parser's tokens have already been consumed".into()),

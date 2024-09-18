@@ -10,7 +10,7 @@ fn parser_boolean() {
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_ok());
-    assert_eq!("true", format!("{}", res.unwrap()));
+    assert_eq!("true", format!("{}", res.unwrap().unwrap()));
 }
 
 #[test]
@@ -19,7 +19,7 @@ fn parser_number() {
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_ok());
-    assert_eq!("123.456", format!("{}", res.unwrap()));
+    assert_eq!("123.456", format!("{}", res.unwrap().unwrap()));
 }
 
 #[test]
@@ -28,7 +28,10 @@ fn parser_expression_1() {
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_ok());
-    assert_eq!("(group (!= 12.0 13.0))", format!("{}", res.unwrap()));
+    assert_eq!(
+        "(group (!= 12.0 13.0))",
+        format!("{}", res.unwrap().unwrap())
+    );
 }
 
 #[test]
@@ -37,7 +40,7 @@ fn parser_expression_2() {
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_ok());
-    assert_eq!("(!= foo bar)", format!("{}", res.unwrap()));
+    assert_eq!("(!= foo bar)", format!("{}", res.unwrap().unwrap()));
 }
 
 #[test]
