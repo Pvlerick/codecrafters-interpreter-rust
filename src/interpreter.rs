@@ -42,7 +42,9 @@ impl Interpreter {
     {
         match self.parser.take() {
             Some(mut parser) => {
-                writeln!(output, "{}", parser.parse_expression()?)?;
+                let expr = parser.parse_expression()?;
+                let result = Interpreter::eval(&expr)?;
+                write!(output, "{}", result)?;
 
                 if let Some(errors) = parser.errors() {
                     self.has_parsing_errors = true;
@@ -70,7 +72,9 @@ impl Interpreter {
                             println!("val: {}", value);
                             writeln!(output, "{}", value)?;
                         }
-                        None => {}
+                        None => {
+                            println!("no type");
+                        }
                     }
                 }
 
@@ -168,7 +172,7 @@ impl Interpreter {
                     }
                     (TokenType::EqualEqual, _, _) => Ok(Type::Boolean(false)),
                     (TokenType::BangEqual, _, _) => Ok(Type::Boolean(false)),
-                    _ => Err("hello".into()),
+                    _ => Err("Unrecognized binary expression".into()),
                 }
             }
         }

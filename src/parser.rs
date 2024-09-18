@@ -77,7 +77,15 @@ impl Parser {
     }
 
     pub fn parse_expression(&mut self) -> Result<Expr, Box<dyn Error>> {
-        todo!()
+        match self.tokens.take() {
+            Some(tokens) => {
+                match StatementsIterator::new(tokens, self.errors.clone()).next_expression() {
+                    Some(expr) => Ok(expr),
+                    None => Err("No expression found".into()),
+                }
+            }
+            None => Err("Parser's tokens have already been consumed".into()),
+        }
     }
 
     pub fn errors(&self) -> Option<Vec<String>> {
@@ -112,6 +120,20 @@ impl Iterator for StatementsIterator {
 }
 
 impl StatementsIterator {
+    pub fn next_expression(&mut self) -> Option<Expr> {
+        match self.expression() {
+            Ok(Some(expr)) => Some(expr),
+            Ok(None) => None,
+            Err(error) => {
+                self.errors
+                    .borrow_mut()
+                    .get_or_insert_with(|| Vec::new())
+                    .push(format!("{}", error));
+                None
+            }
+        }
+    }
+
     pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Option<Vec<String>>>>) -> Self {
         Self {
             tokens: StopOnFirstErrorIterator::new(tokens),
