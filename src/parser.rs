@@ -25,7 +25,7 @@ primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression "
 
 pub struct Parser {
     tokens: Option<TokensIterator>,
-    errors: Rc<RefCell<Vec<String>>>,
+    errors: Rc<RefCell<Option<Vec<String>>>>,
 }
 
 macro_rules! gramar_rule {
@@ -55,7 +55,7 @@ impl Parser {
     pub fn new(tokens: TokensIterator) -> Self {
         Self {
             tokens: Some(tokens),
-            errors: Rc::new(RefCell::new(Vec::new())),
+            errors: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -76,10 +76,14 @@ impl Parser {
         }
     }
 
+    pub fn parse_expression(&mut self) -> Result<Expr, Box<dyn Error>> {
+        todo!()
+    }
+
     pub fn errors(&self) -> Option<Vec<String>> {
         match self.tokens {
+            None => self.errors.take(),
             Some(_) => None, // Parsing didn't occur yet
-            None => Some(self.errors.take()),
         }
     }
 }
@@ -87,7 +91,7 @@ impl Parser {
 pub struct StatementsIterator {
     tokens: StopOnFirstErrorIterator<TokensIterator, Token, TokenError>,
     peeked: Option<Token>,
-    errors: Rc<RefCell<Vec<String>>>,
+    errors: Rc<RefCell<Option<Vec<String>>>>,
 }
 
 impl Iterator for StatementsIterator {
@@ -97,7 +101,10 @@ impl Iterator for StatementsIterator {
         match self.statement() {
             Ok(item) => item,
             Err(error) => {
-                self.errors.borrow_mut().push(format!("{}", error));
+                self.errors
+                    .borrow_mut()
+                    .get_or_insert_with(|| Vec::new())
+                    .push(format!("{}", error));
                 None
             }
         }
@@ -105,7 +112,7 @@ impl Iterator for StatementsIterator {
 }
 
 impl StatementsIterator {
-    pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Vec<String>>>) -> Self {
+    pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Option<Vec<String>>>>) -> Self {
         Self {
             tokens: StopOnFirstErrorIterator::new(tokens),
             peeked: None,
@@ -127,7 +134,10 @@ impl StatementsIterator {
     // }
 
     fn error(&mut self, msg: String) {
-        self.errors.borrow_mut().push(msg);
+        self.errors
+            .borrow_mut()
+            .get_or_insert_with(|| Vec::new())
+            .push(msg);
     }
 
     pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {

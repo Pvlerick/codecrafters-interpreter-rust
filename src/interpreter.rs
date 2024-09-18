@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     fmt::Display,
-    io::{sink, BufRead, Write},
+    io::{BufRead, Write},
 };
 
 use crate::{
@@ -42,15 +42,7 @@ impl Interpreter {
     {
         match self.parser.take() {
             Some(mut parser) => {
-                for statement in parser.parse()? {
-                    match self.execute(&statement, &mut sink())? {
-                        Some(value) => {
-                            println!("val: {}", value);
-                            writeln!(output, "{}", value)?;
-                        }
-                        None => {}
-                    }
-                }
+                writeln!(output, "{}", parser.parse_expression()?)?;
 
                 if let Some(errors) = parser.errors() {
                     self.has_parsing_errors = true;
