@@ -135,19 +135,6 @@ impl StatementsIterator {
         }
     }
 
-    // #[allow(dead_code)]
-    // fn synchronize(&mut self) {
-    //     use TokenType::*;
-    //     println!("synchronizing...");
-    //     while let Some(token_type) = self.tokens.peek().map(|i| i.token_type) {
-    //         match token_type {
-    //             Semicolon | Class | For | Fun | If | Print | Return | Var | While => {}
-    //             _ => _ = self.tokens.next(),
-    //         }
-    //     }
-    //     println!("done.");
-    // }
-
     fn add_error<T>(&mut self, msg: T, line: usize)
     where
         T: Display,
@@ -159,7 +146,7 @@ impl StatementsIterator {
     }
 
     pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
-        match self.next_token() {
+        match self.peek() {
             Ok(Some(token)) => match token.token_type {
                 TokenType::EOF => Ok(None),
                 TokenType::Print => self.print_statement(token.line),
@@ -182,6 +169,7 @@ impl StatementsIterator {
     }
 
     fn expression_statement(&mut self, line: usize) -> Result<Option<Statement>, TokenError> {
+        println!("this is a statement");
         match self.expression() {
             Ok(Some(expr)) => {
                 println!("expr: {}", expr);
@@ -230,6 +218,7 @@ impl StatementsIterator {
     fn primary(&mut self) -> Result<Option<Expr>, TokenError> {
         match self.next_token() {
             Ok(Some(token)) => {
+                println!("in primary");
                 use TokenType::*;
                 match token.token_type {
                     False | True | Nil | Number | String => {
@@ -237,6 +226,7 @@ impl StatementsIterator {
                     }
                     LeftParenthesis => match self.expression()? {
                         Some(expr) => {
+                            println!("in group");
                             if self.peek_matches(RightParenthesis)?.is_some() {
                                 return Ok(Some(Expr::grouping(expr)));
                             } else {
@@ -277,10 +267,33 @@ impl StatementsIterator {
         }
     }
 
+    fn peek(&mut self) -> Result<Option<&Token>, TokenError> {
+        match self.peeked {
+            Some(_) => Ok(self.peeked.as_ref()),
+            None => match self.tokens.next() {
+                Some(token) => {
+                    self.peeked = Some(token);
+                    Ok(self.peeked.as_ref())
+                }
+                None => match self.tokens.error.take() {
+                    Some(e) => Err(e),
+                    None => Ok(None),
+                },
+            },
+        }
+    }
+
     fn peek_matches<M: TokenTypeMatcher>(
         &mut self,
         matcher: M,
     ) -> Result<Option<Token>, TokenError> {
+        println!(
+            "peeking: {}",
+            &self
+                .peeked
+                .as_ref()
+                .map_or("[empty]".to_owned(), |i| i.token_type.to_string())
+        );
         match &self.peeked {
             Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.take()),
             Some(_) => Ok(None),
