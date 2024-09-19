@@ -70,10 +70,7 @@ impl Interpreter {
         match self.parser.take() {
             Some(mut parser) => {
                 for statement in parser.parse()? {
-                    match self.execute(&statement, output)? {
-                        Some(value) => writeln!(output, "{}", value)?,
-                        None => {}
-                    }
+                    let _ = self.execute(&statement, output)?;
                 }
 
                 if let Some(errors) = parser.errors() {
