@@ -53,9 +53,7 @@ impl Interpreter {
 
                 if let Some(errors) = parser.errors() {
                     self.has_parsing_errors = true;
-                    for error in errors {
-                        writeln!(err_output, "{}", error)?;
-                    }
+                    write!(err_output, "{}", errors)?
                 }
 
                 Ok(())
@@ -80,9 +78,7 @@ impl Interpreter {
 
                 if let Some(errors) = parser.errors() {
                     self.has_parsing_errors = true;
-                    for error in errors {
-                        writeln!(err_output, "{}", error)?;
-                    }
+                    write!(err_output, "{}", errors)?
                 }
 
                 Ok(())

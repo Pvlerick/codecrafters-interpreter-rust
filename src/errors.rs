@@ -72,21 +72,25 @@ impl Display for TokenError {
 }
 
 #[derive(Debug)]
-pub struct ParsingError {
-    messages: Vec<String>,
+pub struct ParsingErrors {
+    errors: Vec<String>,
 }
 
-impl Error for ParsingError {}
+impl Error for ParsingErrors {}
 
-impl From<Vec<String>> for ParsingError {
+impl From<Vec<String>> for ParsingErrors {
     fn from(value: Vec<String>) -> Self {
-        ParsingError { messages: value }
+        ParsingErrors { errors: value }
     }
 }
 
-impl Display for ParsingError {
+impl Display for ParsingErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.messages.join("\n"))
+        for error in self.errors.iter() {
+            writeln!(f, "{}", error)?
+        }
+
+        Ok(())
     }
 }
 

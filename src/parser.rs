@@ -1,7 +1,7 @@
 use std::{cell::RefCell, error::Error, fmt::Display, io::BufRead, rc::Rc};
 
 use crate::{
-    errors::TokenError,
+    errors::{ParsingErrors, TokenError},
     scanner::{Scanner, Token, TokenType, TokensIterator},
     utils::StopOnFirstErrorIterator,
 };
@@ -88,9 +88,9 @@ impl Parser {
         }
     }
 
-    pub fn errors(&self) -> Option<Vec<String>> {
+    pub fn errors(&self) -> Option<ParsingErrors> {
         match self.tokens {
-            None => self.errors.take(),
+            None => self.errors.take().map(|i| i.into()),
             Some(_) => None, // Parsing didn't occur yet
         }
     }
@@ -162,7 +162,7 @@ impl StatementsIterator {
         self.errors
             .borrow_mut()
             .get_or_insert_with(|| Vec::new())
-            .push(format!("[line {}] Error: {}", line, msg.into()));
+            .push(format!("[line {}] Error: {}.", line, msg.into()));
     }
 
     pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
@@ -248,7 +248,7 @@ impl StatementsIterator {
                                 if self.peek_matches(RightParenthesis)?.is_some() {
                                     return Ok(Some(Expr::grouping(expr)));
                                 } else {
-                                    self.error("Expect ')' after expression.", token.line);
+                                    self.error("Expect ')' after expression", token.line);
                                     Ok(None)
                                 }
                             }

@@ -121,14 +121,9 @@ fn parse_file(file_path: &str) {
                 }
             }
 
-            match parser.errors() {
-                Some(errors) => {
-                    for error in errors {
-                        eprintln!("{}", error);
-                    }
-                    std::process::exit(65);
-                }
-                None => {}
+            if let Some(errors) = parser.errors() {
+                eprintln!("{}", errors);
+                std::process::exit(65);
             }
         }
         Err(error) => println!("{}", error),
