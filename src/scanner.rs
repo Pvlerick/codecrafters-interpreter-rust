@@ -167,7 +167,7 @@ impl TokensIterator {
                 start_line,
             ));
         } else {
-            return Err(format!("[line {}] Error: Unterminated string.", start_line).into());
+            TokenError::new("Unterminated string", start_line).into()
         }
     }
 
@@ -256,11 +256,10 @@ impl Iterator for TokensIterator {
                     return Some(self.handle_identifier_or_keyword(c))
                 }
                 _ => {
-                    return Some(Err(format!(
-                        "[line {}] Error: Unexpected character: {}",
-                        self.line, character
+                    return Some(
+                        TokenError::new(format!("Unexpected character: {}", character), self.line)
+                            .into(),
                     )
-                    .into()))
                 }
             };
         }

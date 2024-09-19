@@ -42,19 +42,32 @@ impl Display for ScanningError {
 #[derive(Debug)]
 pub struct TokenError {
     message: String,
+    line: usize,
+}
+
+impl TokenError {
+    pub fn new<T>(msg: T, line: usize) -> Self
+    where
+        T: Into<String>,
+    {
+        Self {
+            message: msg.into(),
+            line,
+        }
+    }
+}
+
+impl<T> Into<Result<T, TokenError>> for TokenError {
+    fn into(self) -> Result<T, TokenError> {
+        Err(self)
+    }
 }
 
 impl Error for TokenError {}
 
-impl From<String> for TokenError {
-    fn from(value: String) -> Self {
-        TokenError { message: value }
-    }
-}
-
 impl Display for TokenError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
+        write!(f, "[line {}] Error: {}.", self.line, self.message)
     }
 }
 

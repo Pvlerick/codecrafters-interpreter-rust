@@ -71,7 +71,6 @@ beh"#,
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_err());
-    // assert_eq!("Expect ')' after expression.", res.unwrap_err().to_string());
 }
 
 #[test]
@@ -80,5 +79,16 @@ fn parser_print_statement() {
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_err());
-    // assert_eq!("(print 42)", res.unwrap_err().to_string());
+}
+
+#[test]
+fn parser_complex_expression_1() {
+    let mut tmp_file = TempFile::with_content("(85 + 64 - 59) > (30 - 85) * 2");
+    let mut parser = Parser::build(tmp_file.reader()).unwrap();
+    let res = parser.parse_expression();
+    assert!(res.is_ok());
+    assert_eq!(
+        "(> (group (- (+ 85.0 64.0) 59.0)) (* (group (- 30.0 85.0)) 2.0))",
+        format!("{}", res.unwrap().unwrap())
+    );
 }

@@ -98,3 +98,23 @@ There should be an empty line above this.
         String::from_utf8_lossy(&output)
     );
 }
+
+#[test]
+fn run_expression_statements() {
+    let mut tmp_file = TempFile::with_content(
+        r#"(85 + 64 - 59) > (30 - 85) * 2;
+print !false;
+"world" + "hello" + "foo" + "quz" == "worldhellofooquz";
+print !false;"#,
+    );
+    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
+    let mut output = Vec::new();
+    let res = interpreter.run(&mut output, &mut sink());
+    assert!(res.is_ok());
+    assert_eq!(
+        r#"true
+true
+"#,
+        String::from_utf8_lossy(&output)
+    );
+}

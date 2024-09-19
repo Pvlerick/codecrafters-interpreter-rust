@@ -166,18 +166,18 @@ impl StatementsIterator {
         match self.next_token() {
             Ok(Some(token)) => match token.token_type {
                 TokenType::EOF => Ok(None),
-                TokenType::Print => self.print_statement(),
-                _ => self.expression_statement(),
+                TokenType::Print => self.print_statement(token.line),
+                _ => self.expression_statement(token.line),
             },
             Ok(None) => Ok(None),
             Err(error) => Err(error),
         }
     }
 
-    fn print_statement(&mut self) -> Result<Option<Statement>, TokenError> {
+    fn print_statement(&mut self, line: usize) -> Result<Option<Statement>, TokenError> {
         match self.expression() {
             Ok(Some(expr)) => {
-                self.consume_semicolon()?;
+                self.consume_semicolon(line)?;
                 Ok(Some(Statement::Print(expr)))
             }
             Ok(None) => Ok(None),
@@ -185,10 +185,10 @@ impl StatementsIterator {
         }
     }
 
-    fn expression_statement(&mut self) -> Result<Option<Statement>, TokenError> {
+    fn expression_statement(&mut self, line: usize) -> Result<Option<Statement>, TokenError> {
         match self.expression() {
             Ok(Some(expr)) => {
-                self.consume_semicolon()?;
+                self.consume_semicolon(line)?;
                 Ok(Some(Statement::Expression(expr)))
             }
             Ok(None) => Ok(None),
@@ -290,10 +290,10 @@ impl StatementsIterator {
         }
     }
 
-    fn consume_semicolon(&mut self) -> Result<(), TokenError> {
+    fn consume_semicolon(&mut self, line: usize) -> Result<(), TokenError> {
         match self.peek_matches(TokenType::Semicolon) {
             Ok(Some(_)) => Ok(()),
-            Ok(None) => Err("Expect ';' after expression.".to_owned().into()),
+            Ok(None) => TokenError::new("Expect ';' after expression", line).into(),
             Err(error) => Err(error),
         }
     }
