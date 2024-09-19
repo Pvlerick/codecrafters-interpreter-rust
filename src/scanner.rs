@@ -171,7 +171,7 @@ impl TokensIterator {
                 start_line,
             ));
         } else {
-            TokenError::new("Unterminated string", start_line).into()
+            TokenError::new("Unterminated string.", start_line).into()
         }
     }
 
