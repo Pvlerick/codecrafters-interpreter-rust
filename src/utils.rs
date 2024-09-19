@@ -2,7 +2,7 @@ pub struct StopOnFirstErrorIterator<T, U, E>
 where
     T: Iterator<Item = Result<U, E>>,
 {
-    inner: T,
+    pub inner: T,
     pub error: Option<E>,
 }
 

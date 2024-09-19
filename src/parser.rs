@@ -8,7 +8,6 @@ use crate::{
 
 /* Grammar:
 
-
 program        → statement* EOF ;
 statement      → exprStmt | printStmt ;
 exprStmt       → expression ";" ;
@@ -185,6 +184,7 @@ impl StatementsIterator {
     fn expression_statement(&mut self, line: usize) -> Result<Option<Statement>, TokenError> {
         match self.expression() {
             Ok(Some(expr)) => {
+                println!("expr: {}", expr);
                 self.consume_semicolon(line)?;
                 Ok(Some(Statement::Expression(expr)))
             }
@@ -235,27 +235,28 @@ impl StatementsIterator {
                     False | True | Nil | Number | String => {
                         return Ok(Some(Expr::literal(token)));
                     }
-                    LeftParenthesis => {
-                        let expr = self.expression()?;
-                        match expr {
-                            Some(expr) => {
-                                if self.peek_matches(RightParenthesis)?.is_some() {
-                                    return Ok(Some(Expr::grouping(expr)));
-                                } else {
-                                    self.add_error("Expect ')' after expression", token.line);
-                                    Ok(None)
-                                }
+                    LeftParenthesis => match self.expression()? {
+                        Some(expr) => {
+                            if self.peek_matches(RightParenthesis)?.is_some() {
+                                return Ok(Some(Expr::grouping(expr)));
+                            } else {
+                                self.add_error("Expect ')' after expression", token.line);
+                                Ok(None)
                             }
-                            None => Ok(None),
                         }
-                    }
+                        None => Ok(None),
+                    },
                     token_type => {
                         self.add_error(format!("Unexpected token: {}", token_type), token.line);
                         Ok(None)
                     }
                 }
             }
-            Ok(None) => Ok(Some(Expr::literal(Token::new(TokenType::EOF, "", 0)))),
+            Ok(None) => Ok(Some(Expr::literal(Token::new(
+                TokenType::EOF,
+                "",
+                self.tokens.inner.current_line(),
+            )))),
             Err(error) => Err(error),
         }
     }

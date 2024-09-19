@@ -80,6 +80,10 @@ impl TokensIterator {
         }
     }
 
+    pub fn current_line(&self) -> usize {
+        self.line
+    }
+
     fn next(&mut self) -> Option<char> {
         if self.has_reached_eof {
             return None;
