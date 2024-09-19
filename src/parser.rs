@@ -149,7 +149,10 @@ impl StatementsIterator {
         match self.peek() {
             Ok(Some(token)) => match token.token_type {
                 TokenType::EOF => Ok(None),
-                TokenType::Print => self.print_statement(),
+                TokenType::Print => {
+                    let _ = self.next_token()?; // Discard first tokens as it's "print"
+                    self.print_statement()
+                }
                 _ => self.expression_statement(),
             },
             Ok(None) => Ok(None),
