@@ -164,6 +164,12 @@ impl Interpreter {
                     (TokenType::BangEqual, Type::Number(a), Type::Number(b)) => {
                         Ok(Type::Boolean(a != b))
                     }
+                    (TokenType::EqualEqual, Type::Boolean(a), Type::Boolean(b)) => {
+                        Ok(Type::Boolean(a == b))
+                    }
+                    (TokenType::BangEqual, Type::Boolean(a), Type::Boolean(b)) => {
+                        Ok(Type::Boolean(a != b))
+                    }
                     (TokenType::EqualEqual, Type::String(a), Type::String(b)) => {
                         Ok(Type::Boolean(a == b))
                     }

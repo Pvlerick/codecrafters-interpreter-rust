@@ -27,6 +27,17 @@ fn run_print_true() {
 }
 
 #[test]
+fn run_print_boolean_comparison() {
+    // let mut tmp_file = TempFile::with_content("print false != true;");
+    let mut tmp_file = TempFile::with_content("print true != false;");
+    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
+    let mut output = Vec::new();
+    let res = interpreter.run(&mut output, &mut sink());
+    assert!(res.is_ok());
+    assert_eq!("true\n", String::from_utf8_lossy(&output));
+}
+
+#[test]
 fn run_print_multiple_statements() {
     let mut tmp_file = TempFile::with_content("print \"foo\"; print 42;");
     let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();

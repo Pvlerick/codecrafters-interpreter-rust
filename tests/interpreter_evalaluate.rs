@@ -347,6 +347,16 @@ fn evaluate_not_equal_3() {
 }
 
 #[test]
+fn evaluate_not_equal_4() {
+    let mut tmp_file = TempFile::with_content("true != false");
+    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
+    let mut output = Vec::new();
+    let res = interpreter.evaluate(&mut output, &mut stderr());
+    assert!(res.is_ok());
+    assert_eq!("true", String::from_utf8_lossy(&output));
+}
+
+#[test]
 fn evaluate_runtime_error_1() {
     let mut tmp_file = TempFile::with_content("-\"muffin\"");
     let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
