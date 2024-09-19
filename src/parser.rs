@@ -155,11 +155,14 @@ impl StatementsIterator {
     //     println!("done.");
     // }
 
-    fn error(&mut self, msg: String) {
+    fn error<T>(&mut self, msg: T, line: usize)
+    where
+        T: Into<String>,
+    {
         self.errors
             .borrow_mut()
             .get_or_insert_with(|| Vec::new())
-            .push(msg);
+            .push(format!("[line {}] Error: {}", line, msg.into()));
     }
 
     pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
@@ -242,10 +245,10 @@ impl StatementsIterator {
                         let expr = self.expression()?;
                         match expr {
                             Some(expr) => {
-                                if let Some(_) = self.peek_matches(RightParenthesis)? {
+                                if self.peek_matches(RightParenthesis)?.is_some() {
                                     return Ok(Some(Expr::grouping(expr)));
                                 } else {
-                                    self.error("Expect ')' after expression.".to_string());
+                                    self.error("Expect ')' after expression.", token.line);
                                     Ok(None)
                                 }
                             }
@@ -253,7 +256,7 @@ impl StatementsIterator {
                         }
                     }
                     token_type => {
-                        self.error(format!("Unexpected token: {}", token_type));
+                        self.error(format!("Unexpected token: {}", token_type), token.line);
                         Ok(None)
                     }
                 }
@@ -267,7 +270,10 @@ impl StatementsIterator {
         match self.peeked {
             Some(_) => Ok(self.peeked.take()),
             None => match self.tokens.next() {
-                Some(token) => Ok(Some(token)),
+                Some(token) => {
+                    println!("token: {}", token.token_type);
+                    Ok(Some(token))
+                }
                 None => match self.tokens.error.take() {
                     Some(e) => Err(e),
                     None => Ok(None),
