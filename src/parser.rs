@@ -109,10 +109,7 @@ impl Iterator for StatementsIterator {
         match self.statement() {
             Ok(item) => item,
             Err(error) => {
-                self.errors
-                    .borrow_mut()
-                    .get_or_insert_with(|| Vec::new())
-                    .push(format!("{}", error));
+                self.add_error(error.message, error.line);
                 None
             }
         }
@@ -120,25 +117,22 @@ impl Iterator for StatementsIterator {
 }
 
 impl StatementsIterator {
-    pub fn next_expression(&mut self) -> Option<Expr> {
-        match self.expression() {
-            Ok(Some(expr)) => Some(expr),
-            Ok(None) => None,
-            Err(error) => {
-                self.errors
-                    .borrow_mut()
-                    .get_or_insert_with(|| Vec::new())
-                    .push(format!("{}", error));
-                None
-            }
-        }
-    }
-
     pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Option<Vec<String>>>>) -> Self {
         Self {
             tokens: StopOnFirstErrorIterator::new(tokens),
             peeked: None,
             errors,
+        }
+    }
+
+    pub fn next_expression(&mut self) -> Option<Expr> {
+        match self.expression() {
+            Ok(Some(expr)) => Some(expr),
+            Ok(None) => None,
+            Err(error) => {
+                self.add_error(error.message, error.line);
+                None
+            }
         }
     }
 
@@ -155,14 +149,14 @@ impl StatementsIterator {
     //     println!("done.");
     // }
 
-    fn error<T>(&mut self, msg: T, line: usize)
+    fn add_error<T>(&mut self, msg: T, line: usize)
     where
-        T: Into<String>,
+        T: Display,
     {
         self.errors
             .borrow_mut()
             .get_or_insert_with(|| Vec::new())
-            .push(format!("[line {}] Error: {}.", line, msg.into()));
+            .push(format!("[line {}] Error: {}.", line, msg));
     }
 
     pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
@@ -248,7 +242,7 @@ impl StatementsIterator {
                                 if self.peek_matches(RightParenthesis)?.is_some() {
                                     return Ok(Some(Expr::grouping(expr)));
                                 } else {
-                                    self.error("Expect ')' after expression", token.line);
+                                    self.add_error("Expect ')' after expression", token.line);
                                     Ok(None)
                                 }
                             }
@@ -256,7 +250,7 @@ impl StatementsIterator {
                         }
                     }
                     token_type => {
-                        self.error(format!("Unexpected token: {}", token_type), token.line);
+                        self.add_error(format!("Unexpected token: {}", token_type), token.line);
                         Ok(None)
                     }
                 }

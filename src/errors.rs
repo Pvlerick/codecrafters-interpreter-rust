@@ -41,8 +41,8 @@ impl Display for ScanningError {
 
 #[derive(Debug)]
 pub struct TokenError {
-    message: String,
-    line: usize,
+    pub message: String,
+    pub line: usize,
 }
 
 impl TokenError {
