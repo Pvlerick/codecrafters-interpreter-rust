@@ -149,18 +149,18 @@ impl StatementsIterator {
         match self.peek() {
             Ok(Some(token)) => match token.token_type {
                 TokenType::EOF => Ok(None),
-                TokenType::Print => self.print_statement(token.line),
-                _ => self.expression_statement(token.line),
+                TokenType::Print => self.print_statement(),
+                _ => self.expression_statement(),
             },
             Ok(None) => Ok(None),
             Err(error) => Err(error),
         }
     }
 
-    fn print_statement(&mut self, line: usize) -> Result<Option<Statement>, TokenError> {
+    fn print_statement(&mut self) -> Result<Option<Statement>, TokenError> {
         match self.expression() {
             Ok(Some(expr)) => {
-                self.consume_semicolon(line)?;
+                self.consume_semicolon()?;
                 Ok(Some(Statement::Print(expr)))
             }
             Ok(None) => Ok(None),
@@ -168,12 +168,10 @@ impl StatementsIterator {
         }
     }
 
-    fn expression_statement(&mut self, line: usize) -> Result<Option<Statement>, TokenError> {
-        println!("this is a statement");
+    fn expression_statement(&mut self) -> Result<Option<Statement>, TokenError> {
         match self.expression() {
             Ok(Some(expr)) => {
-                println!("expr: {}", expr);
-                self.consume_semicolon(line)?;
+                self.consume_semicolon()?;
                 Ok(Some(Statement::Expression(expr)))
             }
             Ok(None) => Ok(None),
@@ -218,7 +216,6 @@ impl StatementsIterator {
     fn primary(&mut self) -> Result<Option<Expr>, TokenError> {
         match self.next_token() {
             Ok(Some(token)) => {
-                println!("in primary");
                 use TokenType::*;
                 match token.token_type {
                     False | True | Nil | Number | String => {
@@ -226,7 +223,6 @@ impl StatementsIterator {
                     }
                     LeftParenthesis => match self.expression()? {
                         Some(expr) => {
-                            println!("in group");
                             if self.peek_matches(RightParenthesis)?.is_some() {
                                 return Ok(Some(Expr::grouping(expr)));
                             } else {
@@ -255,10 +251,7 @@ impl StatementsIterator {
         match self.peeked {
             Some(_) => Ok(self.peeked.take()),
             None => match self.tokens.next() {
-                Some(token) => {
-                    println!("token: {}", token.token_type);
-                    Ok(Some(token))
-                }
+                Some(token) => Ok(Some(token)),
                 None => match self.tokens.error.take() {
                     Some(e) => Err(e),
                     None => Ok(None),
@@ -287,13 +280,6 @@ impl StatementsIterator {
         &mut self,
         matcher: M,
     ) -> Result<Option<Token>, TokenError> {
-        println!(
-            "peeking: {}",
-            &self
-                .peeked
-                .as_ref()
-                .map_or("[empty]".to_owned(), |i| i.token_type.to_string())
-        );
         match &self.peeked {
             Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.take()),
             Some(_) => Ok(None),
@@ -304,10 +290,14 @@ impl StatementsIterator {
         }
     }
 
-    fn consume_semicolon(&mut self, line: usize) -> Result<(), TokenError> {
+    fn consume_semicolon(&mut self) -> Result<(), TokenError> {
         match self.peek_matches(TokenType::Semicolon) {
             Ok(Some(_)) => Ok(()),
-            Ok(None) => TokenError::new("Expect ';' after expression", line).into(),
+            Ok(None) => TokenError::new(
+                "Expect ';' after expression",
+                self.tokens.inner.current_line(),
+            )
+            .into(),
             Err(error) => Err(error),
         }
     }
