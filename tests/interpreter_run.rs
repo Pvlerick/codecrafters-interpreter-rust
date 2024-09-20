@@ -186,7 +186,7 @@ fn run_var_assignment_1() {
     let mut tmp_file = TempFile::with_content(
         r#"var a = 20;
 a = 42;
-print 1;"#,
+print 42;"#,
     );
     let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
     let mut output = Vec::new();

@@ -1,4 +1,10 @@
-use std::{cell::RefCell, error::Error, fmt::Display, io::BufRead, rc::Rc};
+use std::{
+    cell::RefCell,
+    error::Error,
+    fmt::Display,
+    io::{stdout, BufRead, Write},
+    rc::Rc,
+};
 
 use crate::{
     errors::{ParsingErrors, TokenError},
@@ -153,6 +159,7 @@ impl DeclarationsIterator {
     }
 
     fn declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
+        //TODO peek_matches
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::EOF => Ok(None),
@@ -186,6 +193,7 @@ impl DeclarationsIterator {
     }
 
     fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
+        //TODO peek_matches
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::Print => {
@@ -223,7 +231,24 @@ impl DeclarationsIterator {
     }
 
     fn assignment(&mut self) -> Result<Option<Expr>, TokenError> {
-        self.equality()
+        // Keeps on calling even after EOF
+        let expr = self.equality()?;
+
+        if self.peek_matches(TokenType::Equal)?.is_some() {
+            let _ = stdout().flush();
+            return match (self.assignment()?, expr) {
+                (Some(value), Some(Expr::Variable(token))) => {
+                    Ok(Some(Expr::assignment(token, value)))
+                }
+                _ => {
+                    self.add_error("Invalid assignment target");
+                    Ok(None)
+                }
+            };
+        }
+
+        let _ = stdout().flush();
+        Ok(expr)
     }
 
     gramar_rule!(
@@ -261,10 +286,8 @@ impl DeclarationsIterator {
             Ok(Some(token)) => {
                 use TokenType::*;
                 match token.token_type {
-                    Identifier => return Ok(Some(Expr::variable(token))),
-                    False | True | Nil | Number | String => {
-                        return Ok(Some(Expr::literal(token)));
-                    }
+                    Identifier => Ok(Some(Expr::variable(token))),
+                    False | True | Nil | Number | String => Ok(Some(Expr::literal(token))),
                     LeftParenthesis => match self.expression()? {
                         Some(expr) => {
                             if self.peek_matches(RightParenthesis)?.is_some() {
@@ -276,6 +299,7 @@ impl DeclarationsIterator {
                         }
                         None => Ok(None),
                     },
+                    EOF => Ok(None),
                     token_type => {
                         self.add_error(format!("Unexpected token: {}", token_type));
                         Ok(None)
@@ -283,6 +307,7 @@ impl DeclarationsIterator {
                 }
             }
             Ok(None) => Ok(Some(Expr::literal(Token::new(
+                //TODO is this still nevcessary?
                 TokenType::EOF,
                 "",
                 self.tokens.inner.current_line(),
@@ -327,10 +352,13 @@ impl DeclarationsIterator {
         match &self.peeked {
             Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.take()),
             Some(_) => Ok(None),
-            None => {
-                self.peeked = self.tokens.next();
-                self.peek_matches(matcher)
-            }
+            None => match self.tokens.next() {
+                Some(token) => {
+                    self.peeked = Some(token);
+                    self.peek_matches(matcher)
+                }
+                None => Ok(None),
+            },
         }
     }
 
@@ -409,6 +437,7 @@ pub enum Expr {
     Literal(Token),
     Unary(Token, Box<Expr>),
     Variable(Token),
+    Assignment(Token, Box<Expr>),
 }
 
 impl Expr {
@@ -431,6 +460,10 @@ impl Expr {
     fn variable(token: Token) -> Self {
         Self::Variable(token)
     }
+
+    fn assignment(token: Token, expr: Expr) -> Self {
+        Self::Assignment(token, Box::new(expr))
+    }
 }
 
 impl Display for Expr {
@@ -441,7 +474,8 @@ impl Display for Expr {
             Grouping(expr) => write!(f, "(group {})", expr),
             Literal(token) => write!(f, "{}", token.display()),
             Unary(token, expr) => write!(f, "({} {})", token.display(), expr),
-            Variable(token) => write!(f, "\"{}\"", token.display()),
+            Variable(token) => write!(f, "(var \"{}\")", token.display()),
+            Assignment(name, expr) => write!(f, "(assignment {}={})", name, expr),
         }
     }
 }

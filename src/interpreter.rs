@@ -46,13 +46,12 @@ impl Interpreter {
     {
         match self.parser.take() {
             Some(mut parser) => {
-                let expr = parser.parse_expression()?;
-                match expr {
+                match parser.parse_expression()? {
                     Some(expr) => {
                         let result = self.eval(&expr)?;
                         write!(output, "{}", result)?;
                     }
-                    None => {}
+                    _ => {}
                 }
 
                 if let Some(errors) = parser.errors() {
@@ -180,6 +179,7 @@ impl Interpreter {
                 Some(value) => Ok(value.clone()),
                 None => Err(format!("Undefined variable '{}'.", token.lexeme).into()),
             },
+            Expr::Assignment(_, _) => Ok(Type::Nil),
         }
     }
 
