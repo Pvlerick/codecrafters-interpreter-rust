@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-    parser::{Expr, Parser, Statement},
+    parser::{Declaration, Expr, Parser, Statement},
     scanner::{Literal, TokenType},
 };
 
@@ -69,8 +69,8 @@ impl Interpreter {
     {
         match self.parser.take() {
             Some(mut parser) => {
-                for statement in parser.parse()? {
-                    let _ = self.execute(&statement, output)?;
+                for declaration in parser.parse()? {
+                    let _ = self.execute(&declaration, output)?;
                 }
 
                 if let Some(errors) = parser.errors() {
@@ -86,18 +86,21 @@ impl Interpreter {
 
     fn execute<T>(
         &self,
-        statement: &Statement,
+        declaration: &Declaration,
         output: &mut T,
     ) -> Result<Option<Type>, Box<dyn Error>>
     where
         T: Write,
     {
-        match statement {
-            Statement::Print(expr) => {
+        match declaration {
+            Declaration::Variable(_) => Ok(None),
+            Declaration::Statement(Statement::Print(expr)) => {
                 writeln!(output, "{}", Interpreter::eval(&expr)?)?;
                 Ok(None)
             }
-            Statement::Expression(expr) => Ok(Some(Interpreter::eval(&expr)?)),
+            Declaration::Statement(Statement::Expression(expr)) => {
+                Ok(Some(Interpreter::eval(&expr)?))
+            }
         }
     }
 

@@ -9,13 +9,13 @@ impl Error for ScanningError {}
 
 impl From<String> for ScanningError {
     fn from(value: String) -> Self {
-        ScanningError { message: value }
+        Self { message: value }
     }
 }
 
 impl From<&str> for ScanningError {
     fn from(value: &str) -> Self {
-        ScanningError {
+        Self {
             message: value.to_owned(),
         }
     }
@@ -23,7 +23,7 @@ impl From<&str> for ScanningError {
 
 impl From<Vec<TokenError>> for ScanningError {
     fn from(value: Vec<TokenError>) -> Self {
-        ScanningError {
+        Self {
             message: value
                 .into_iter()
                 .map(|i| i.message)
@@ -57,8 +57,8 @@ impl TokenError {
     }
 }
 
-impl<T> Into<Result<T, TokenError>> for TokenError {
-    fn into(self) -> Result<T, TokenError> {
+impl<T> Into<Result<T, Self>> for TokenError {
+    fn into(self) -> Result<T, Self> {
         Err(self)
     }
 }
@@ -80,7 +80,7 @@ impl Error for ParsingErrors {}
 
 impl From<Vec<String>> for ParsingErrors {
     fn from(value: Vec<String>) -> Self {
-        ParsingErrors { errors: value }
+        Self { errors: value }
     }
 }
 
@@ -103,7 +103,7 @@ impl Error for EvaluationError {}
 
 impl From<String> for EvaluationError {
     fn from(value: String) -> Self {
-        EvaluationError { message: value }
+        Self { message: value }
     }
 }
 

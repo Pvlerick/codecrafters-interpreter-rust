@@ -8,7 +8,9 @@ use crate::{
 
 /* Grammar:
 
-program        → statement* EOF ;
+program        → declaration* EOF ;
+declaration    → varDecl | statement ;
+varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 statement      → exprStmt | printStmt ;
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;
@@ -68,9 +70,9 @@ impl Parser {
         Ok(Self::new(tokens))
     }
 
-    pub fn parse(&mut self) -> Result<StatementsIterator, Box<dyn Error>> {
+    pub fn parse(&mut self) -> Result<DeclarationsIterator, Box<dyn Error>> {
         match self.tokens.take() {
-            Some(tokens) => Ok(StatementsIterator::new(tokens, self.errors.clone())),
+            Some(tokens) => Ok(DeclarationsIterator::new(tokens, self.errors.clone())),
             None => Err("Parser's tokens have already been consumed".into()),
         }
     }
@@ -78,7 +80,7 @@ impl Parser {
     pub fn parse_expression(&mut self) -> Result<Option<Expr>, Box<dyn Error>> {
         match self.tokens.take() {
             Some(tokens) => {
-                match StatementsIterator::new(tokens, self.errors.clone()).next_expression() {
+                match DeclarationsIterator::new(tokens, self.errors.clone()).next_expression() {
                     Some(expr) => Ok(Some(expr)),
                     None => Err("No expression found.".into()),
                 }
@@ -95,17 +97,17 @@ impl Parser {
     }
 }
 
-pub struct StatementsIterator {
+pub struct DeclarationsIterator {
     tokens: StopOnFirstErrorIterator<TokensIterator, Token, TokenError>,
     peeked: Option<Token>,
     errors: Rc<RefCell<Option<Vec<String>>>>,
 }
 
-impl Iterator for StatementsIterator {
-    type Item = Statement;
+impl Iterator for DeclarationsIterator {
+    type Item = Declaration;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.statement() {
+        match self.declaration() {
             Ok(item) => item,
             Err(error) => {
                 self.add_error(error.message, error.line);
@@ -115,7 +117,7 @@ impl Iterator for StatementsIterator {
     }
 }
 
-impl StatementsIterator {
+impl DeclarationsIterator {
     pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Option<Vec<String>>>>) -> Self {
         Self {
             tokens: StopOnFirstErrorIterator::new(tokens),
@@ -145,18 +147,31 @@ impl StatementsIterator {
             .push(format!("[line {}] Error: {}.", line, msg));
     }
 
-    pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
-        match self.peek() {
-            Ok(Some(token)) => match token.token_type {
+    pub fn declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
+        match self.peek()? {
+            Some(token) => match token.token_type {
                 TokenType::EOF => Ok(None),
+                TokenType::Var => self.variable_declaration(),
+                _ => self.statement().map(|i| i.map(|j| j.into())),
+            },
+            None => Ok(None),
+        }
+    }
+
+    pub fn variable_declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
+        todo!()
+    }
+
+    pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
+        match self.peek()? {
+            Some(token) => match token.token_type {
                 TokenType::Print => {
                     let _ = self.next_token()?; // Discard first tokens as it's "print"
                     self.print_statement()
                 }
                 _ => self.expression_statement(),
             },
-            Ok(None) => Ok(None),
-            Err(error) => Err(error),
+            None => Ok(None),
         }
     }
 
@@ -323,9 +338,31 @@ impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
 }
 
 #[derive(Debug)]
+pub enum Declaration {
+    Variable(Expr),
+    Statement(Statement),
+}
+
+impl Display for Declaration {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Declaration::*;
+        match self {
+            Variable(expr) => write!(f, "var {}", expr),
+            Statement(statement) => write!(f, "{}", statement),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum Statement {
     Print(Expr),
     Expression(Expr),
+}
+
+impl Into<Declaration> for Statement {
+    fn into(self) -> Declaration {
+        Declaration::Statement(self)
+    }
 }
 
 impl Display for Statement {
