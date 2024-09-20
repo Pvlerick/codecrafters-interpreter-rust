@@ -14,7 +14,8 @@ varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 statement      → exprStmt | printStmt ;
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;
-expression     → equality ;
+expression     → assignment ;
+assignment     → IDENTIFIER "=" assignment | equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
@@ -126,7 +127,7 @@ impl DeclarationsIterator {
         }
     }
 
-    pub fn next_expression(&mut self) -> Option<Expr> {
+    fn next_expression(&mut self) -> Option<Expr> {
         match self.expression() {
             Ok(Some(expr)) => Some(expr),
             Ok(None) => None,
@@ -151,7 +152,7 @@ impl DeclarationsIterator {
             ));
     }
 
-    pub fn declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
+    fn declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::EOF => Ok(None),
@@ -162,7 +163,7 @@ impl DeclarationsIterator {
         }
     }
 
-    pub fn variable_declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
+    fn variable_declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
         let _ = self.next_token()?; // Discard var token
         match self.next_token()? {
             Some(token) if token.token_type == TokenType::Identifier => {
@@ -184,7 +185,7 @@ impl DeclarationsIterator {
         }
     }
 
-    pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
+    fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::Print => {
@@ -217,7 +218,11 @@ impl DeclarationsIterator {
         }
     }
 
-    pub fn expression(&mut self) -> Result<Option<Expr>, TokenError> {
+    fn expression(&mut self) -> Result<Option<Expr>, TokenError> {
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> Result<Option<Expr>, TokenError> {
         self.equality()
     }
 
