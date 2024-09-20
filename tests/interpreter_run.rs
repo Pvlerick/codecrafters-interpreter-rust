@@ -225,7 +225,6 @@ print quz;
     assert!(res.is_ok());
     assert_eq!(
         r#"1
-nil
 2
 "#,
         String::from_utf8_lossy(&output)

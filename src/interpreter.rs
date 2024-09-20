@@ -107,7 +107,11 @@ impl Interpreter {
                 Ok(None)
             }
             Declaration::Statement(Statement::Print(expr)) => {
-                writeln!(output, "{}", self.eval(&expr)?)?;
+                let value = self.eval(&expr)?;
+                match expr {
+                    Expr::Assignment(_, _) => {}
+                    _ => writeln!(output, "{}", value)?,
+                }
                 Ok(None)
             }
             Declaration::Statement(Statement::Expression(expr)) => Ok(Some(self.eval(&expr)?)),
