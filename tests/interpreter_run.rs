@@ -186,7 +186,7 @@ fn run_var_assignment_1() {
     let mut tmp_file = TempFile::with_content(
         r#"var a = 20;
 a = 42;
-print 42;"#,
+print a;"#,
     );
     let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
     let mut output = Vec::new();
@@ -200,11 +200,34 @@ fn run_var_assignment_2() {
     let mut tmp_file = TempFile::with_content(
         r#"var a = 20;
 a = a + 22;
-print 42;"#,
+print a;"#,
     );
     let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
     let mut output = Vec::new();
     let res = interpreter.run(&mut output, &mut stderr());
     assert!(res.is_ok());
     assert_eq!("42\n", String::from_utf8_lossy(&output));
+}
+
+#[test]
+fn run_var_assignment_3() {
+    let mut tmp_file = TempFile::with_content(
+        r#"var quz;
+quz = 1;
+print quz;
+print quz = 2;
+print quz;
+"#,
+    );
+    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
+    let mut output = Vec::new();
+    let res = interpreter.run(&mut output, &mut stderr());
+    assert!(res.is_ok());
+    assert_eq!(
+        r#"1
+nil
+2
+"#,
+        String::from_utf8_lossy(&output)
+    );
 }

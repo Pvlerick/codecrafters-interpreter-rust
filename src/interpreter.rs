@@ -97,7 +97,9 @@ impl Interpreter {
     {
         match declaration {
             Declaration::Variable(name, Some(expression)) => {
-                self.values.insert(name.to_owned(), self.eval(expression)?);
+                let name = name.to_owned();
+                let value = self.eval(expression)?;
+                self.values.insert(name, value);
                 Ok(None)
             }
             Declaration::Variable(name, None) => {
@@ -112,7 +114,7 @@ impl Interpreter {
         }
     }
 
-    fn eval(&self, expression: &Expr) -> Result<Type, Box<dyn Error>> {
+    fn eval(&mut self, expression: &Expr) -> Result<Type, Box<dyn Error>> {
         match expression {
             Expr::Literal(token) => match token.token_type {
                 TokenType::True => Ok(Type::Boolean(true)),
@@ -179,7 +181,12 @@ impl Interpreter {
                 Some(value) => Ok(value.clone()),
                 None => Err(format!("Undefined variable '{}'.", token.lexeme).into()),
             },
-            Expr::Assignment(_, _) => Ok(Type::Nil),
+            Expr::Assignment(token, expr) => {
+                let name = token.lexeme.to_owned();
+                let value = self.eval(expr)?;
+                self.values.insert(name, value);
+                Ok(Type::Nil)
+            }
         }
     }
 

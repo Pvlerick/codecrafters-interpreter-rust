@@ -1,10 +1,4 @@
-use std::{
-    cell::RefCell,
-    error::Error,
-    fmt::Display,
-    io::{stdout, BufRead, Write},
-    rc::Rc,
-};
+use std::{cell::RefCell, error::Error, fmt::Display, io::BufRead, rc::Rc};
 
 use crate::{
     errors::{ParsingErrors, TokenError},
@@ -229,7 +223,6 @@ impl DeclarationsIterator {
     }
 
     fn assignment(&mut self) -> Result<Option<Expr>, TokenError> {
-        // Keeps on calling even after EOF
         let expr = self.equality()?;
 
         if self.peek_matches(TokenType::Equal)?.is_some() {
