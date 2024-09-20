@@ -1,5 +1,7 @@
 mod common;
 
+use std::rc::Rc;
+
 use interpreter_starter_rust::scanner::{Literal, Scanner, Token, TokenType};
 
 use crate::common::TempFile;
@@ -20,7 +22,7 @@ fn scanner_string_literal() {
             Token::with_literal(
                 String,
                 "\"hello\"".to_string(),
-                Literal::String("hello".to_string()),
+                Literal::String(Rc::new("hello".to_string())),
                 1
             ),
             Token::new(EOF, "", 2)

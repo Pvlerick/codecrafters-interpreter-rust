@@ -20,7 +20,7 @@ comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary | primary ;
-primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+primary        → NUMBER | STRING | "true" | "false" | "nil" | IDENTIFIER | "(" expression ")" ;
 
 */
 
@@ -110,7 +110,7 @@ impl Iterator for DeclarationsIterator {
         match self.declaration() {
             Ok(item) => item,
             Err(error) => {
-                self.add_error(error.message, error.line);
+                self.add_error(error.message);
                 None
             }
         }
@@ -131,20 +131,24 @@ impl DeclarationsIterator {
             Ok(Some(expr)) => Some(expr),
             Ok(None) => None,
             Err(error) => {
-                self.add_error(error.message, error.line);
+                self.add_error(error.message);
                 None
             }
         }
     }
 
-    fn add_error<T>(&mut self, msg: T, line: usize)
+    fn add_error<T>(&mut self, msg: T)
     where
         T: Display,
     {
         self.errors
             .borrow_mut()
             .get_or_insert_with(|| Vec::new())
-            .push(format!("[line {}] Error: {}.", line, msg));
+            .push(format!(
+                "[line {}] Error: {}.",
+                self.tokens.inner.current_line(),
+                msg
+            ));
     }
 
     pub fn declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
@@ -159,7 +163,25 @@ impl DeclarationsIterator {
     }
 
     pub fn variable_declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
-        todo!()
+        let _ = self.next_token()?; // Discard var token
+        match self.next_token()? {
+            Some(token) if token.token_type == TokenType::Identifier => {
+                let name = token.lexeme;
+                let initializer = match self.peek()? {
+                    Some(token) if token.token_type == TokenType::Equal => {
+                        let _ = self.next_token(); // Discard = token
+                        self.expression()?
+                    }
+                    _ => None,
+                };
+                self.consume_semicolon()?;
+                Ok(Some(Declaration::Variable(name, initializer)))
+            }
+            _ => {
+                self.add_error("Expect variable name");
+                Ok(None)
+            }
+        }
     }
 
     pub fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
@@ -176,24 +198,22 @@ impl DeclarationsIterator {
     }
 
     fn print_statement(&mut self) -> Result<Option<Statement>, TokenError> {
-        match self.expression() {
-            Ok(Some(expr)) => {
+        match self.expression()? {
+            Some(expr) => {
                 self.consume_semicolon()?;
                 Ok(Some(Statement::Print(expr)))
             }
-            Ok(None) => Ok(None),
-            Err(error) => Err(error),
+            None => Ok(None),
         }
     }
 
     fn expression_statement(&mut self) -> Result<Option<Statement>, TokenError> {
-        match self.expression() {
-            Ok(Some(expr)) => {
+        match self.expression()? {
+            Some(expr) => {
                 self.consume_semicolon()?;
                 Ok(Some(Statement::Expression(expr)))
             }
-            Ok(None) => Ok(None),
-            Err(error) => Err(error),
+            None => Ok(None),
         }
     }
 
@@ -236,6 +256,7 @@ impl DeclarationsIterator {
             Ok(Some(token)) => {
                 use TokenType::*;
                 match token.token_type {
+                    Identifier => return Ok(Some(Expr::variable(token))),
                     False | True | Nil | Number | String => {
                         return Ok(Some(Expr::literal(token)));
                     }
@@ -244,14 +265,14 @@ impl DeclarationsIterator {
                             if self.peek_matches(RightParenthesis)?.is_some() {
                                 return Ok(Some(Expr::grouping(expr)));
                             } else {
-                                self.add_error("Expect ')' after expression", token.line);
+                                self.add_error("Expect ')' after expression");
                                 Ok(None)
                             }
                         }
                         None => Ok(None),
                     },
                     token_type => {
-                        self.add_error(format!("Unexpected token: {}", token_type), token.line);
+                        self.add_error(format!("Unexpected token: {}", token_type));
                         Ok(None)
                     }
                 }
@@ -339,7 +360,7 @@ impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
 
 #[derive(Debug)]
 pub enum Declaration {
-    Variable(Expr),
+    Variable(String, Option<Expr>),
     Statement(Statement),
 }
 
@@ -347,7 +368,8 @@ impl Display for Declaration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Declaration::*;
         match self {
-            Variable(expr) => write!(f, "var {}", expr),
+            Variable(name, Some(expr)) => write!(f, "var {}={}", name, expr),
+            Variable(name, None) => write!(f, "var {}", name),
             Statement(statement) => write!(f, "{}", statement),
         }
     }
@@ -381,23 +403,28 @@ pub enum Expr {
     Grouping(Box<Expr>),
     Literal(Token),
     Unary(Token, Box<Expr>),
+    Variable(Token),
 }
 
 impl Expr {
     fn binary(token: Token, left: Expr, right: Expr) -> Self {
-        Expr::Binary(token, Box::new(left), Box::new(right))
+        Self::Binary(token, Box::new(left), Box::new(right))
     }
 
     fn grouping(expr: Expr) -> Self {
-        Expr::Grouping(Box::new(expr))
+        Self::Grouping(Box::new(expr))
     }
 
     fn literal(token: Token) -> Self {
-        Expr::Literal(token)
+        Self::Literal(token)
     }
 
     fn unary(token: Token, expr: Expr) -> Self {
-        Expr::Unary(token, Box::new(expr))
+        Self::Unary(token, Box::new(expr))
+    }
+
+    fn variable(token: Token) -> Self {
+        Self::Variable(token)
     }
 }
 
@@ -409,6 +436,7 @@ impl Display for Expr {
             Grouping(expr) => write!(f, "(group {})", expr),
             Literal(token) => write!(f, "{}", token.display()),
             Unary(token, expr) => write!(f, "({} {})", token.display(), expr),
+            Variable(token) => write!(f, "\"{}\"", token.display()),
         }
     }
 }

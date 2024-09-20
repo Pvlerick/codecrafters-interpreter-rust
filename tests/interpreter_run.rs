@@ -129,7 +129,7 @@ print a;"#,
     let mut output = Vec::new();
     let res = interpreter.run(&mut output, &mut stderr());
     assert!(res.is_ok());
-    assert_eq!("foo", String::from_utf8_lossy(&output));
+    assert_eq!("foo\n", String::from_utf8_lossy(&output));
 }
 
 #[test]
@@ -142,5 +142,27 @@ print a;"#,
     let mut output = Vec::new();
     let res = interpreter.run(&mut output, &mut stderr());
     assert!(res.is_ok());
-    assert_eq!("42", String::from_utf8_lossy(&output));
+    assert_eq!("42\n", String::from_utf8_lossy(&output));
+}
+
+#[test]
+fn run_var_unassigned() {
+    let mut tmp_file = TempFile::with_content(
+        r#"var a;
+print a;"#,
+    );
+    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
+    let mut output = Vec::new();
+    let res = interpreter.run(&mut output, &mut stderr());
+    assert!(res.is_ok());
+    assert_eq!("nil\n", String::from_utf8_lossy(&output));
+}
+
+#[test]
+fn run_var_undefined() {
+    let mut tmp_file = TempFile::with_content("print a;");
+    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
+    let mut output = Vec::new();
+    let res = interpreter.run(&mut output, &mut stderr());
+    assert!(res.is_ok());
 }

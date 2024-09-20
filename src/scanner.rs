@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, fmt::Display, io::BufRead};
+use std::{collections::VecDeque, fmt::Display, io::BufRead, rc::Rc};
 
 use crate::errors::{ScanningError, TokenError};
 
@@ -167,7 +167,7 @@ impl TokensIterator {
             return Ok(Token::with_literal(
                 TokenType::String,
                 buf.to_string(),
-                Literal::String(buf[1..buf.len() - 1].to_string()),
+                Literal::String(Rc::new(buf[1..buf.len() - 1].to_string())),
                 start_line,
             ));
         } else {
@@ -274,7 +274,7 @@ impl Iterator for TokensIterator {
 pub struct Token {
     pub token_type: TokenType,
     pub lexeme: String,
-    pub literal: Option<Literal>,
+    pub literal: Option<Rc<Literal>>,
     pub line: usize,
 }
 
@@ -297,7 +297,7 @@ impl Token {
         Token {
             token_type,
             lexeme: lexeme.to_string(),
-            literal: Some(literal),
+            literal: Some(Rc::new(literal)),
             line,
         }
     }
@@ -417,7 +417,7 @@ impl Display for TokenType {
 
 #[derive(Debug, PartialEq)]
 pub enum Literal {
-    String(String),
+    String(Rc<String>),
     Digit(f64),
 }
 
@@ -439,7 +439,7 @@ impl Display for Literal {
 impl PartialEq<String> for Literal {
     fn eq(&self, other: &String) -> bool {
         match self {
-            Literal::String(s) => s == other,
+            Literal::String(s) => **s == *other,
             _ => false,
         }
     }
