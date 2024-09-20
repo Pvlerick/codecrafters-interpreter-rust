@@ -146,6 +146,20 @@ print a;"#,
 }
 
 #[test]
+fn run_var_redeclare_print_2() {
+    let mut tmp_file = TempFile::with_content(
+        r#"var a = 20 + 22;
+var a = "foo";
+print a;"#,
+    );
+    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
+    let mut output = Vec::new();
+    let res = interpreter.run(&mut output, &mut stderr());
+    assert!(res.is_ok());
+    assert_eq!("foo\n", String::from_utf8_lossy(&output));
+}
+
+#[test]
 fn run_var_unassigned() {
     let mut tmp_file = TempFile::with_content(
         r#"var a;
@@ -164,5 +178,5 @@ fn run_var_undefined() {
     let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
     let mut output = Vec::new();
     let res = interpreter.run(&mut output, &mut stderr());
-    assert!(res.is_ok());
+    assert!(res.is_err());
 }
