@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     error::Error,
     fmt::Display,
     io::{BufRead, Write},
@@ -7,13 +6,14 @@ use std::{
 };
 
 use crate::{
+    environment::Environment,
     parser::{Declaration, Expr, Parser, Statement},
     scanner::{Literal, TokenType},
 };
 
 pub struct Interpreter {
     parser: Option<Parser>,
-    values: HashMap<String, Type>,
+    environment: Environment<Type>,
     pub has_parsing_errors: bool,
 }
 
@@ -21,7 +21,7 @@ impl Interpreter {
     pub fn new(parser: Parser) -> Self {
         Self {
             parser: Some(parser),
-            values: HashMap::new(),
+            environment: Environment::new(),
             has_parsing_errors: false,
         }
     }
@@ -99,11 +99,11 @@ impl Interpreter {
             Declaration::Variable(name, Some(expression)) => {
                 let name = name.to_owned();
                 let value = self.eval(expression)?;
-                self.values.insert(name, value);
+                self.environment.set(name, value);
                 Ok(None)
             }
             Declaration::Variable(name, None) => {
-                self.values.insert(name.to_owned(), Type::Nil);
+                self.environment.set(name.to_owned(), Type::Nil);
                 Ok(None)
             }
             Declaration::Statement(Statement::Print(expr)) => {
@@ -177,14 +177,14 @@ impl Interpreter {
                 (TokenType::BangEqual, _, _) => Ok(Type::Boolean(false)),
                 _ => Err("Unrecognized binary expression".into()),
             },
-            Expr::Variable(token) => match self.values.get(&token.lexeme) {
+            Expr::Variable(token) => match self.environment.get(&token.lexeme) {
                 Some(value) => Ok(value.clone()),
                 None => Err(format!("Undefined variable '{}'.", token.lexeme).into()),
             },
             Expr::Assignment(token, expr) => {
                 let name = token.lexeme.to_owned();
                 let value = self.eval(expr)?;
-                self.values.insert(name, value.clone());
+                self.environment.set(name, value.clone());
                 Ok(value)
             }
         }
