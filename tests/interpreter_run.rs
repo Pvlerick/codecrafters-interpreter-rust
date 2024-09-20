@@ -226,6 +226,7 @@ print quz;
     assert_eq!(
         r#"1
 2
+2
 "#,
         String::from_utf8_lossy(&output)
     );

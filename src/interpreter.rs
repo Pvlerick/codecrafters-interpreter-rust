@@ -107,11 +107,7 @@ impl Interpreter {
                 Ok(None)
             }
             Declaration::Statement(Statement::Print(expr)) => {
-                let value = self.eval(&expr)?;
-                match expr {
-                    Expr::Assignment(_, _) => {}
-                    _ => writeln!(output, "{}", value)?,
-                }
+                writeln!(output, "{}", self.eval(expr)?)?;
                 Ok(None)
             }
             Declaration::Statement(Statement::Expression(expr)) => Ok(Some(self.eval(&expr)?)),
@@ -188,8 +184,8 @@ impl Interpreter {
             Expr::Assignment(token, expr) => {
                 let name = token.lexeme.to_owned();
                 let value = self.eval(expr)?;
-                self.values.insert(name, value);
-                Ok(Type::Nil)
+                self.values.insert(name, value.clone());
+                Ok(value)
             }
         }
     }
