@@ -159,7 +159,6 @@ impl DeclarationsIterator {
     }
 
     fn declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
-        //TODO peek_matches
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::EOF => Ok(None),
@@ -193,7 +192,6 @@ impl DeclarationsIterator {
     }
 
     fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
-        //TODO peek_matches
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::Print => {
@@ -235,7 +233,6 @@ impl DeclarationsIterator {
         let expr = self.equality()?;
 
         if self.peek_matches(TokenType::Equal)?.is_some() {
-            let _ = stdout().flush();
             return match (self.assignment()?, expr) {
                 (Some(value), Some(Expr::Variable(token))) => {
                     Ok(Some(Expr::assignment(token, value)))
@@ -247,7 +244,6 @@ impl DeclarationsIterator {
             };
         }
 
-        let _ = stdout().flush();
         Ok(expr)
     }
 
@@ -299,19 +295,13 @@ impl DeclarationsIterator {
                         }
                         None => Ok(None),
                     },
-                    EOF => Ok(None),
                     token_type => {
                         self.add_error(format!("Unexpected token: {}", token_type));
                         Ok(None)
                     }
                 }
             }
-            Ok(None) => Ok(Some(Expr::literal(Token::new(
-                //TODO is this still nevcessary?
-                TokenType::EOF,
-                "",
-                self.tokens.inner.current_line(),
-            )))),
+            Ok(_) => Ok(None),
             Err(error) => Err(error),
         }
     }
