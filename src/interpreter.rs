@@ -99,11 +99,11 @@ impl Interpreter {
             Declaration::Variable(name, Some(expression)) => {
                 let name = name.to_owned();
                 let value = self.eval(expression)?;
-                self.environment.set(name, value);
+                self.environment.assign(name, value);
                 Ok(None)
             }
             Declaration::Variable(name, None) => {
-                self.environment.set(name.to_owned(), Type::Nil);
+                self.environment.assign(name.to_owned(), Type::Nil);
                 Ok(None)
             }
             Declaration::Statement(Statement::Print(expr)) => {
@@ -184,7 +184,7 @@ impl Interpreter {
             Expr::Assignment(token, expr) => {
                 let name = token.lexeme.to_owned();
                 let value = self.eval(expr)?;
-                self.environment.set(name, value.clone());
+                self.environment.assign(name, value.clone());
                 Ok(value)
             }
         }
