@@ -323,9 +323,9 @@ fn run_blocks_4() {
 fn run_blocks_5() {
     let mut tmp_file = TempFile::with_content(
         r#"{
-    var foo = 11;
+     var foo = 11;
 }
-print foo"#,
+print foo;"#,
     );
     let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
     let mut output = Vec::new();

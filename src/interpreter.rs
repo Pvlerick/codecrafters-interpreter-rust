@@ -73,7 +73,7 @@ impl Interpreter {
         match self.parser.take() {
             Some(mut parser) => {
                 for declaration in parser.parse()? {
-                    let _ = self.execute(&declaration, &environment, output)?;
+                    self.execute(&declaration, &environment, output)?;
                 }
 
                 if let Some(errors) = parser.errors() {
@@ -97,9 +97,9 @@ impl Interpreter {
         T: Write,
     {
         match declaration {
-            Declaration::Variable(name, Some(expression)) => {
+            Declaration::Variable(name, Some(expr)) => {
                 let name = name.to_owned();
-                let value = self.eval(environment, expression)?;
+                let value = self.eval(environment, expr)?;
                 environment.define(name, value);
                 Ok(None)
             }
@@ -108,7 +108,7 @@ impl Interpreter {
                 Ok(None)
             }
             Declaration::Statement(Statement::Print(expr)) => {
-                writeln!(output, "{}", self.eval(environment, expr)?)?;
+                writeln!(output, "{}", self.eval(environment, &expr)?)?;
                 Ok(None)
             }
             Declaration::Statement(Statement::Expression(expr)) => {
@@ -219,7 +219,7 @@ impl Interpreter {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 enum Type {
     Nil,
     Boolean(bool),

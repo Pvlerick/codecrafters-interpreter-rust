@@ -187,9 +187,13 @@ impl DeclarationsIterator {
     }
 
     fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
+        print!("statement: ");
         match self.peek()? {
             Some(token) => match token.token_type {
-                TokenType::LeftBrace => self.block(),
+                TokenType::LeftBrace => {
+                    let _ = self.next_token()?; // Discard left brace
+                    self.block()
+                }
                 TokenType::Print => {
                     let _ = self.next_token()?; // Discard first tokens as it's "print"
                     self.print_statement()
@@ -201,15 +205,13 @@ impl DeclarationsIterator {
     }
 
     fn block(&mut self) -> Result<Option<Statement>, TokenError> {
-        let _ = self.next_token()?; // Discard left brace
         let mut declarations = Vec::new();
         while self.peek_matches(TokenType::RightBrace)?.is_none() {
             match self.declaration()? {
                 Some(declaration) => declarations.push(declaration),
-                None => return Ok(None),
+                None => {}
             }
         }
-        let _ = self.next_token()?; //Discard right brace
         Ok(Some(Statement::Block(Box::new(declarations))))
     }
 

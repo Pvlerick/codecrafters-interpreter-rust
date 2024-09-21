@@ -1,5 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, error::Error, rc::Rc};
 
+#[derive(Debug)]
 pub struct Environment<T>
 where
     T: Clone,
@@ -36,6 +37,7 @@ where
     }
 }
 
+#[derive(Debug)]
 struct Inner<T>
 where
     T: Clone,
@@ -74,7 +76,7 @@ where
         } else {
             match &self.enclosing {
                 Some(inner) => inner.borrow_mut().assign(key, value),
-                None => Err("Undef var".into()),
+                None => Err(format!("Undefined variable '{}'.", key_s).into()),
             }
         }
     }
@@ -112,11 +114,9 @@ mod test {
     fn define_and_get_in_enclosed_1() {
         let sut = Environment::<u32>::new();
         sut.define("foo", 42);
-        {
-            let enclosing = sut.enclose();
-            enclosing.define("foo", 84);
-            assert_eq!(Some(84), enclosing.get("foo"));
-        }
+        let enclosing = sut.enclose();
+        enclosing.define("foo", 84);
+        assert_eq!(Some(84), enclosing.get("foo"));
         assert_eq!(Some(42), sut.get("foo"));
     }
 
@@ -124,11 +124,31 @@ mod test {
     fn define_and_get_in_enclosed_2() {
         let sut = Environment::<u32>::new();
         sut.define("foo", 42);
-        {
-            let enclosing = sut.enclose();
-            enclosing.define("bar", 84);
-            assert_eq!(Some(84), enclosing.get("bar"));
-        }
+        let enclosing = sut.enclose();
+        enclosing.define("bar", 84);
+        assert_eq!(Some(84), enclosing.get("bar"));
         assert_eq!(None, sut.get("bar"));
+    }
+
+    #[test]
+    fn define_and_get_in_enclosed_3() {
+        let sut = Environment::<u32>::new();
+        sut.define("foo", 42);
+        let enclosing = sut.enclose();
+        assert_eq!(Some(42), enclosing.get("foo"));
+        assert_eq!(Some(42), sut.get("foo"));
+    }
+
+    #[test]
+    fn define_and_get_in_enclosed_4() {
+        let sut = Environment::<u32>::new();
+        sut.define("foo", 42);
+        let enclosing_1 = sut.enclose();
+        enclosing_1.define("foo", 84);
+        let enclosing_2 = enclosing_1.enclose();
+        enclosing_2.define("foo", 168);
+        assert_eq!(Some(42), sut.get("foo"));
+        assert_eq!(Some(84), enclosing_1.get("foo"));
+        assert_eq!(Some(168), enclosing_2.get("foo"));
     }
 }
