@@ -76,7 +76,6 @@ impl Interpreter {
                     self.execute(&declaration, &environment, output)?;
                 }
 
-                println!("has parsing errors?");
                 if let Some(errors) = parser.errors() {
                     self.has_parsing_errors = true;
                     write!(err_output, "{}", errors)?;
