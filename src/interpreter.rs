@@ -79,7 +79,6 @@ impl Interpreter {
                 if let Some(errors) = parser.errors() {
                     self.has_parsing_errors = true;
                     write!(err_output, "{}", errors)?;
-                    return Err("boo".into());
                 }
 
                 Ok(())
