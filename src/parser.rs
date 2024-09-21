@@ -205,12 +205,17 @@ impl DeclarationsIterator {
 
     fn block(&mut self) -> Result<Option<Statement>, TokenError> {
         let mut declarations = Vec::new();
-        while self.peek_matches(TokenType::RightBrace)?.is_none() {
+        while self.peek()?.is_some() && self.peek_matches(TokenType::RightBrace)?.is_none() {
             match self.declaration()? {
                 Some(declaration) => declarations.push(declaration),
-                None => {}
+                None => {
+                    let token_type = self.peek()?.unwrap().token_type;
+                    self.add_error(format!("Unexpected token: {}", token_type));
+                    return Ok(None);
+                }
             }
         }
+
         Ok(Some(Statement::Block(Box::new(declarations))))
     }
 

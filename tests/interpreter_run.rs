@@ -332,3 +332,20 @@ print foo;"#,
     let res = interpreter.run(&mut output, &mut stderr());
     assert!(res.is_err());
 }
+
+#[test]
+fn run_blocks_6() {
+    let mut tmp_file = TempFile::with_content(
+        r#"{
+    var quz = 73;
+    var bar = 73;
+    {
+        print quz + bar;
+}
+"#,
+    );
+    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
+    let mut output = Vec::new();
+    let res = interpreter.run(&mut output, &mut stderr());
+    assert!(res.is_err());
+}
