@@ -187,7 +187,6 @@ impl DeclarationsIterator {
     }
 
     fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
-        print!("statement: ");
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::LeftBrace => {
