@@ -23,11 +23,11 @@ where
         }
     }
 
-    pub fn define<K: ToString>(&mut self, key: K, value: T) {
+    pub fn define<K: ToString>(&self, key: K, value: T) {
         self.inner.borrow_mut().define(key, value);
     }
 
-    pub fn assign<K: ToString>(&mut self, key: K, value: T) -> Result<(), Box<dyn Error>> {
+    pub fn assign<K: ToString>(&self, key: K, value: T) -> Result<(), Box<dyn Error>> {
         self.inner.borrow_mut().assign(key, value)
     }
 
@@ -103,17 +103,17 @@ mod test {
 
     #[test]
     fn define_and_get() {
-        let mut sut = Environment::new();
+        let sut = Environment::new();
         sut.define("foo", 42);
         assert_eq!(Some(42), sut.get("foo"));
     }
 
     #[test]
     fn define_and_get_in_enclosed_1() {
-        let mut sut = Environment::<u32>::new();
+        let sut = Environment::<u32>::new();
         sut.define("foo", 42);
         {
-            let mut enclosing = sut.enclose();
+            let enclosing = sut.enclose();
             enclosing.define("foo", 84);
             assert_eq!(Some(84), enclosing.get("foo"));
         }
@@ -122,10 +122,10 @@ mod test {
 
     #[test]
     fn define_and_get_in_enclosed_2() {
-        let mut sut = Environment::<u32>::new();
+        let sut = Environment::<u32>::new();
         sut.define("foo", 42);
         {
-            let mut enclosing = sut.enclose();
+            let enclosing = sut.enclose();
             enclosing.define("bar", 84);
             assert_eq!(Some(84), enclosing.get("bar"));
         }

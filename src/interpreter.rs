@@ -13,7 +13,6 @@ use crate::{
 
 pub struct Interpreter {
     parser: Option<Parser>,
-    environment: Environment<Type>,
     pub has_parsing_errors: bool,
 }
 
@@ -21,7 +20,6 @@ impl Interpreter {
     pub fn new(parser: Parser) -> Self {
         Self {
             parser: Some(parser),
-            environment: Environment::new(),
             has_parsing_errors: false,
         }
     }
@@ -44,11 +42,12 @@ impl Interpreter {
         T: Write,
         U: Write,
     {
+        let environment = Environment::new();
         match self.parser.take() {
             Some(mut parser) => {
                 match parser.parse_expression()? {
                     Some(expr) => {
-                        let result = self.eval(&expr)?;
+                        let result = self.eval(&environment, &expr)?;
                         write!(output, "{}", result)?;
                     }
                     _ => {}
@@ -70,10 +69,11 @@ impl Interpreter {
         T: Write,
         U: Write,
     {
+        let environment = Environment::new();
         match self.parser.take() {
             Some(mut parser) => {
                 for declaration in parser.parse()? {
-                    let _ = self.execute(&declaration, output)?;
+                    let _ = self.execute(&declaration, &environment, output)?;
                 }
 
                 if let Some(errors) = parser.errors() {
@@ -90,6 +90,7 @@ impl Interpreter {
     fn execute<T>(
         &mut self,
         declaration: &Declaration,
+        environment: &Environment<Type>,
         output: &mut T,
     ) -> Result<Option<Type>, Box<dyn Error>>
     where
@@ -98,23 +99,36 @@ impl Interpreter {
         match declaration {
             Declaration::Variable(name, Some(expression)) => {
                 let name = name.to_owned();
-                let value = self.eval(expression)?;
-                self.environment.assign(name, value);
+                let value = self.eval(environment, expression)?;
+                environment.define(name, value);
                 Ok(None)
             }
             Declaration::Variable(name, None) => {
-                self.environment.assign(name.to_owned(), Type::Nil);
+                environment.define(name, Type::Nil);
                 Ok(None)
             }
             Declaration::Statement(Statement::Print(expr)) => {
-                writeln!(output, "{}", self.eval(expr)?)?;
+                writeln!(output, "{}", self.eval(environment, expr)?)?;
                 Ok(None)
             }
-            Declaration::Statement(Statement::Expression(expr)) => Ok(Some(self.eval(&expr)?)),
+            Declaration::Statement(Statement::Expression(expr)) => {
+                Ok(Some(self.eval(environment, &expr)?))
+            }
+            Declaration::Statement(Statement::Block(declarations)) => {
+                let mut enclosing_environment = environment.enclose();
+                for declaration in declarations.iter() {
+                    self.execute(declaration, &mut enclosing_environment, output)?;
+                }
+                Ok(None)
+            }
         }
     }
 
-    fn eval(&mut self, expression: &Expr) -> Result<Type, Box<dyn Error>> {
+    fn eval(
+        &mut self,
+        environment: &Environment<Type>,
+        expression: &Expr,
+    ) -> Result<Type, Box<dyn Error>> {
         match expression {
             Expr::Literal(token) => match token.token_type {
                 TokenType::True => Ok(Type::Boolean(true)),
@@ -123,16 +137,22 @@ impl Interpreter {
                 _ if token.literal.is_some() => Ok(token.literal.as_ref().unwrap().as_ref().into()),
                 _ => panic!("oh no..."),
             },
-            Expr::Grouping(e) => self.eval(e),
+            Expr::Grouping(e) => self.eval(environment, e),
             Expr::Unary(t, e) => match t.token_type {
-                TokenType::Minus => match self.eval(e)? {
+                TokenType::Minus => match self.eval(environment, e)? {
                     Type::Number(n) => Ok(Type::Number(-n)),
                     _ => Err("Operand must be a number.".into()),
                 },
-                TokenType::Bang => Ok(Type::Boolean(!Interpreter::is_truthy(self.eval(e)?))),
+                TokenType::Bang => Ok(Type::Boolean(!Interpreter::is_truthy(
+                    self.eval(environment, e)?,
+                ))),
                 _ => panic!("oh no..."),
             },
-            Expr::Binary(t, l, r) => match (t.token_type, self.eval(l)?, self.eval(r)?) {
+            Expr::Binary(t, l, r) => match (
+                t.token_type,
+                self.eval(environment, l)?,
+                self.eval(environment, r)?,
+            ) {
                 (TokenType::Plus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a + b)),
                 (TokenType::Plus, Type::String(a), Type::String(b)) => {
                     Ok(Type::String(Rc::new(format!("{}{}", a, b))))
@@ -177,14 +197,14 @@ impl Interpreter {
                 (TokenType::BangEqual, _, _) => Ok(Type::Boolean(false)),
                 _ => Err("Unrecognized binary expression".into()),
             },
-            Expr::Variable(token) => match self.environment.get(&token.lexeme) {
+            Expr::Variable(token) => match environment.get(&token.lexeme) {
                 Some(value) => Ok(value.clone()),
                 None => Err(format!("Undefined variable '{}'.", token.lexeme).into()),
             },
             Expr::Assignment(token, expr) => {
                 let name = token.lexeme.to_owned();
-                let value = self.eval(expr)?;
-                self.environment.assign(name, value.clone());
+                let value = self.eval(environment, expr)?;
+                environment.assign(name, value.clone())?;
                 Ok(value)
             }
         }

@@ -250,7 +250,7 @@ fn run_blocks_1() {
 #[test]
 fn run_blocks_2() {
     let mut tmp_file = TempFile::with_content(
-        r#"
+        r#"{
     var world = "before";
     print world;
 }

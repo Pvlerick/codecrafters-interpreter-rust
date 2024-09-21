@@ -11,9 +11,10 @@ use crate::{
 program        → declaration* EOF ;
 declaration    → varDecl | statement ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
-statement      → exprStmt | printStmt ;
+statement      → exprStmt | printStmt | block ;
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;
+block          → "{" declaration* "}" ;
 expression     → assignment ;
 assignment     → IDENTIFIER "=" assignment | equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -188,6 +189,7 @@ impl DeclarationsIterator {
     fn statement(&mut self) -> Result<Option<Statement>, TokenError> {
         match self.peek()? {
             Some(token) => match token.token_type {
+                TokenType::LeftBrace => self.block(),
                 TokenType::Print => {
                     let _ = self.next_token()?; // Discard first tokens as it's "print"
                     self.print_statement()
@@ -196,6 +198,19 @@ impl DeclarationsIterator {
             },
             None => Ok(None),
         }
+    }
+
+    fn block(&mut self) -> Result<Option<Statement>, TokenError> {
+        let _ = self.next_token()?; // Discard left brace
+        let mut declarations = Vec::new();
+        while self.peek_matches(TokenType::RightBrace)?.is_none() {
+            match self.declaration()? {
+                Some(declaration) => declarations.push(declaration),
+                None => return Ok(None),
+            }
+        }
+        let _ = self.next_token()?; //Discard right brace
+        Ok(Some(Statement::Block(Box::new(declarations))))
     }
 
     fn print_statement(&mut self) -> Result<Option<Statement>, TokenError> {
@@ -395,6 +410,7 @@ impl Display for Declaration {
 pub enum Statement {
     Print(Expr),
     Expression(Expr),
+    Block(Box<Vec<Declaration>>),
 }
 
 impl Into<Declaration> for Statement {
@@ -409,6 +425,13 @@ impl Display for Statement {
         match self {
             Print(expr) => write!(f, "print {}", expr),
             Expression(expr) => write!(f, "{}", expr),
+            Block(statements) => {
+                writeln!(f, "{{")?;
+                for statement in statements.iter() {
+                    writeln!(f, "{}", statement)?;
+                }
+                writeln!(f, "}}")
+            }
         }
     }
 }
