@@ -158,7 +158,7 @@ impl DeclarationsIterator {
             Some(token) => match token.token_type {
                 TokenType::EOF => Ok(None),
                 TokenType::Var => self.variable_declaration(),
-                _ => self.statement().map(|i| i.map(|j| j.into())),
+                _ => Ok(self.statement()?.map(|i| i.into())),
             },
             None => Ok(None),
         }
@@ -209,9 +209,11 @@ impl DeclarationsIterator {
             match self.declaration()? {
                 Some(declaration) => declarations.push(declaration),
                 None => {
-                    let token_type = self.peek()?.unwrap().token_type;
-                    self.add_error(format!("Unexpected token: {}", token_type));
-                    return Ok(None);
+                    return TokenError::new(
+                        "Expect '}' after block",
+                        self.tokens.inner.current_line(),
+                    )
+                    .into()
                 }
             }
         }

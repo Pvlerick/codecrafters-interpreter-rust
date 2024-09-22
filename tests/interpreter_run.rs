@@ -349,3 +349,25 @@ fn run_blocks_6() {
     let res = interpreter.run(&mut output, &mut stderr());
     assert!(res.is_err());
 }
+
+#[test]
+fn run_blocks_7() {
+    let mut tmp_file = TempFile::with_content(
+        r#"var a = 1;
+{
+    var a = a + 2;
+    print a;
+}
+print a;"#,
+    );
+    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
+    let mut output = Vec::new();
+    let res = interpreter.run(&mut output, &mut stderr());
+    assert!(res.is_ok());
+    assert_eq!(
+        r#"3
+1
+"#,
+        String::from_utf8_lossy(&output)
+    );
+}
