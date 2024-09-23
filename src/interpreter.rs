@@ -215,7 +215,7 @@ impl Interpreter {
             Expr::Variable(token) => match environment.get(&token.lexeme) {
                 Some(value) => Ok(value.clone()),
                 None => Err(InterpreterError::evaluating(
-                    format!("Undefined variable '{}'.", token.lexeme),
+                    format!("Undefined variable '{}'", token.lexeme),
                     token.line,
                 )),
             },
@@ -225,7 +225,7 @@ impl Interpreter {
                 match environment.assign(name, value.clone()) {
                     Ok(()) => Ok(value),
                     Err(()) => Err(InterpreterError::evaluating(
-                        format!("Undefined variable '{}'.", token.lexeme),
+                        format!("Undefined variable '{}'", token.lexeme),
                         token.line,
                     )),
                 }

@@ -1,9 +1,8 @@
 use std::{cell::RefCell, fmt::Display, io::BufRead, rc::Rc};
 
 use crate::{
-    errors::{InterpreterError, ParsingErrorsBuilder, TokenError},
+    errors::{InterpreterError, ParsingErrorsBuilder},
     scanner::{Scanner, Token, TokenType, TokensIterator},
-    utils::StopOnFirstErrorIterator,
 };
 
 /* Grammar:
@@ -39,7 +38,7 @@ macro_rules! gramar_rule {
             match self.$base()? {
                 Some(expr) => {
                     ret_expr = expr;
-                    while let Some(operator) = self.peek_matches($token_types) {
+                    while let Some(operator) = self.peek_matches($token_types)? {
                         match self.$base()? {
                             Some(right) => ret_expr = Expr::binary(operator, ret_expr, right),
                             None => return Ok(None),
@@ -104,7 +103,7 @@ impl Parser {
 }
 
 pub struct DeclarationsIterator {
-    tokens: StopOnFirstErrorIterator<TokensIterator, Token, TokenError>,
+    tokens: TokensIterator,
     peeked: Option<Token>,
     errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>,
 }
@@ -115,7 +114,10 @@ impl Iterator for DeclarationsIterator {
     fn next(&mut self) -> Option<Self::Item> {
         match self.declaration() {
             Ok(item) => item,
-            Err(_) => None,
+            Err(_) => match self.syncronize() {
+                Ok(_) => self.next(),
+                Err(_) => None,
+            },
         }
     }
 }
@@ -123,7 +125,7 @@ impl Iterator for DeclarationsIterator {
 impl DeclarationsIterator {
     pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>) -> Self {
         Self {
-            tokens: StopOnFirstErrorIterator::new(tokens),
+            tokens,
             peeked: None,
             errors,
         }
@@ -141,7 +143,7 @@ impl DeclarationsIterator {
         self.errors
             .borrow_mut()
             .get_or_insert_with(|| ParsingErrorsBuilder::new())
-            .add(msg.to_string(), self.tokens.inner.current_line());
+            .add(msg.to_string(), self.tokens.current_line());
         Err(())
     }
 
@@ -169,7 +171,6 @@ impl DeclarationsIterator {
     }
 
     fn declaration(&mut self) -> Result<Option<Declaration>, ()> {
-        //TODO Synchronize here
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::EOF => Ok(None),
@@ -218,7 +219,7 @@ impl DeclarationsIterator {
 
     fn block(&mut self) -> Result<Option<Statement>, ()> {
         let mut declarations = Vec::new();
-        while self.peek()?.is_some() && self.peek_matches(TokenType::RightBrace).is_none() {
+        while self.peek()?.is_some() && self.peek_matches(TokenType::RightBrace)?.is_none() {
             match self.declaration()? {
                 Some(declaration) => declarations.push(declaration),
                 None => return self.add_error("Expect '}' after block"),
@@ -255,7 +256,7 @@ impl DeclarationsIterator {
     fn assignment(&mut self) -> Result<Option<Expr>, ()> {
         let expr = self.equality()?;
 
-        if self.peek_matches(TokenType::Equal).is_some() {
+        if self.peek_matches(TokenType::Equal)?.is_some() {
             return match (self.assignment()?, expr) {
                 (Some(value), Some(Expr::Variable(token))) => {
                     Ok(Some(Expr::assignment(token, value)))
@@ -290,7 +291,7 @@ impl DeclarationsIterator {
 
     fn unary(&mut self) -> Result<Option<Expr>, ()> {
         use TokenType::*;
-        if let Some(operator) = self.peek_matches([Bang, Minus]) {
+        if let Some(operator) = self.peek_matches([Bang, Minus])? {
             return match self.unary()? {
                 Some(right) => Ok(Some(Expr::unary(operator, right))),
                 None => Ok(None),
@@ -309,17 +310,17 @@ impl DeclarationsIterator {
                     False | True | Nil | Number | String => Ok(Some(Expr::literal(token))),
                     LeftParenthesis => match self.expression()? {
                         Some(expr) => {
-                            if self.peek_matches(RightParenthesis).is_some() {
+                            if self.peek_matches(RightParenthesis)?.is_some() {
                                 return Ok(Some(Expr::grouping(expr)));
                             } else {
-                                self.add_error::<_, ()>("Expect ')' after expression");
+                                self.add_error("Expect ')' after expression")?;
                                 Ok(None)
                             }
                         }
                         None => Ok(None),
                     },
                     token_type => {
-                        self.add_error::<_, ()>(format!("Unexpected token: {}", token_type));
+                        self.add_error(format!("Unexpected token: {}", token_type))?;
                         Ok(None)
                     }
                 }
@@ -333,11 +334,9 @@ impl DeclarationsIterator {
         match self.peeked {
             Some(_) => Ok(self.peeked.take()),
             None => match self.tokens.next() {
-                Some(token) => Ok(Some(token)),
-                None => match self.tokens.error.take() {
-                    Some(error) => self.add_error(error),
-                    None => Ok(None),
-                },
+                Some(Ok(token)) => Ok(Some(token)),
+                None => Ok(None),
+                Some(Err(error)) => self.add_error(error),
             },
         }
     }
@@ -346,34 +345,33 @@ impl DeclarationsIterator {
         match self.peeked {
             Some(_) => Ok(self.peeked.as_ref()),
             None => match self.tokens.next() {
-                Some(token) => {
+                Some(Ok(token)) => {
                     self.peeked = Some(token);
                     Ok(self.peeked.as_ref())
                 }
-                None => match self.tokens.error.take() {
-                    Some(error) => self.add_error(error),
-                    None => Ok(None),
-                },
+                None => Ok(None),
+                Some(Err(error)) => self.add_error(error),
             },
         }
     }
 
-    fn peek_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Option<Token> {
+    fn peek_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Result<Option<Token>, ()> {
         match &self.peeked {
-            Some(token) if matcher.matches(&token.token_type) => self.peeked.take(),
-            Some(_) => None,
+            Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.take()),
+            Some(_) => Ok(None),
             None => match self.tokens.next() {
-                Some(token) => {
+                Some(Ok(token)) => {
                     self.peeked = Some(token);
                     self.peek_matches(matcher)
                 }
-                None => None,
+                None => Ok(None),
+                Some(Err(error)) => self.add_error(error),
             },
         }
     }
 
     fn consume_semicolon(&mut self) -> Result<(), ()> {
-        match self.peek_matches(TokenType::Semicolon) {
+        match self.peek_matches(TokenType::Semicolon)? {
             Some(_) => Ok(()),
             None => self.add_error("Expect ';' after expression"),
         }
