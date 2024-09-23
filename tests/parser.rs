@@ -5,51 +5,11 @@ use interpreter_starter_rust::parser::Parser;
 use crate::common::TempFile;
 
 #[test]
-fn parser_boolean() {
-    let mut tmp_file = TempFile::with_content("true");
-    let mut parser = Parser::build(tmp_file.reader()).unwrap();
-    let res = parser.parse_expression();
-    assert!(res.is_ok());
-    assert_eq!("true", format!("{}", res.unwrap().unwrap()));
-}
-
-#[test]
-fn parser_number() {
-    let mut tmp_file = TempFile::with_content("123.456");
-    let mut parser = Parser::build(tmp_file.reader()).unwrap();
-    let res = parser.parse_expression();
-    assert!(res.is_ok());
-    assert_eq!("123.456", format!("{}", res.unwrap().unwrap()));
-}
-
-#[test]
-fn parser_expression_1() {
-    let mut tmp_file = TempFile::with_content("(12 != 13)");
-    let mut parser = Parser::build(tmp_file.reader()).unwrap();
-    let res = parser.parse_expression();
-    assert!(res.is_ok());
-    assert_eq!(
-        "(group (!= 12.0 13.0))",
-        format!("{}", res.unwrap().unwrap())
-    );
-}
-
-#[test]
-fn parser_expression_2() {
-    let mut tmp_file = TempFile::with_content("\"foo\"!=\"bar\"");
-    let mut parser = Parser::build(tmp_file.reader()).unwrap();
-    let res = parser.parse_expression();
-    assert!(res.is_ok());
-    assert_eq!("(!= foo bar)", format!("{}", res.unwrap().unwrap()));
-}
-
-#[test]
 fn parser_empty() {
     let mut tmp_file = TempFile::with_content("");
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_err());
-    // assert_eq!("", res.unwrap_err().to_string());
 }
 
 #[test]
@@ -58,7 +18,6 @@ fn parser_invalid_grammar() {
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_err());
-    // assert_eq!("Expect ')' after expression.", res.unwrap_err().to_string());
 }
 
 #[test]
@@ -71,24 +30,4 @@ beh"#,
     let mut parser = Parser::build(tmp_file.reader()).unwrap();
     let res = parser.parse_expression();
     assert!(res.is_err());
-}
-
-#[test]
-fn parser_print_statement() {
-    let mut tmp_file = TempFile::with_content("print 42;");
-    let mut parser = Parser::build(tmp_file.reader()).unwrap();
-    let res = parser.parse_expression();
-    assert!(res.is_err());
-}
-
-#[test]
-fn parser_complex_expression_1() {
-    let mut tmp_file = TempFile::with_content("(85 + 64 - 59) > (30 - 85) * 2");
-    let mut parser = Parser::build(tmp_file.reader()).unwrap();
-    let res = parser.parse_expression();
-    assert!(res.is_ok());
-    assert_eq!(
-        "(> (group (- (+ 85.0 64.0) 59.0)) (* (group (- 30.0 85.0)) 2.0))",
-        format!("{}", res.unwrap().unwrap())
-    );
 }

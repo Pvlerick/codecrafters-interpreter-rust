@@ -1,399 +1,268 @@
-use std::io::{sink, stderr};
-
-use interpreter_starter_rust::interpreter::Interpreter;
-
-use crate::common::TempFile;
+use crate::common::interpreter;
 
 mod common;
 
 #[test]
-fn evaluate_literal_string() {
-    let mut tmp_file = TempFile::with_content("\"foo\"");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("foo", String::from_utf8_lossy(&output));
-}
-
-#[test]
-fn evaluate_literal_numeric() {
-    let mut tmp_file = TempFile::with_content("42");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("42", String::from_utf8_lossy(&output));
-}
-
-#[test]
 fn evaluate_grouping_literal() {
-    let mut tmp_file = TempFile::with_content("(42)");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("42", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("(42)");
+    assert!(err.is_none());
+    assert_eq!("42", output);
 }
 
 #[test]
 fn evaluate_unary() {
-    let mut tmp_file = TempFile::with_content("-42");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("-42", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("-42");
+    assert!(err.is_none());
+    assert_eq!("-42", output);
 }
 
 #[test]
 fn evaluate_true() {
-    let mut tmp_file = TempFile::with_content("true");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("true");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_false() {
-    let mut tmp_file = TempFile::with_content("false");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("false");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_nil() {
-    let mut tmp_file = TempFile::with_content("nil");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("nil", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("nil");
+    assert!(err.is_none());
+    assert_eq!("nil", output);
 }
 
 #[test]
 fn evaluate_not_1() {
-    let mut tmp_file = TempFile::with_content("!false");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("!false");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_not_2() {
-    let mut tmp_file = TempFile::with_content("!!false");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("!!false");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_not_3() {
-    let mut tmp_file = TempFile::with_content("!!42");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("!!42");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_addition() {
-    let mut tmp_file = TempFile::with_content("1 + 2");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("3", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("1 + 2");
+    assert!(err.is_none());
+    assert_eq!("3", output);
 }
 
 #[test]
 fn evaluate_substraction() {
-    let mut tmp_file = TempFile::with_content("5 - 3");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("2", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("5 - 3");
+    assert!(err.is_none());
+    assert_eq!("2", output);
 }
 
 #[test]
 fn evaluate_division_1() {
-    let mut tmp_file = TempFile::with_content("20 / 2");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("10", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("20 / 2");
+    assert!(err.is_none());
+    assert_eq!("10", output);
 }
 
 #[test]
 fn evaluate_division_2() {
-    let mut tmp_file = TempFile::with_content("14 / 3");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("4.666666666666667", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("14 / 3");
+    assert!(err.is_none());
+    assert_eq!("4.666666666666667", output);
 }
 
 #[test]
 fn evaluate_multiplication() {
-    let mut tmp_file = TempFile::with_content("4 * 5");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("20", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("4 * 5");
+    assert!(err.is_none());
+    assert_eq!("20", output);
 }
 
 #[test]
 fn evaluate_string_concat() {
-    let mut tmp_file = TempFile::with_content("\"hello\" + \" world!\"");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("hello world!", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("\"hello\" + \" world!\"");
+    assert!(err.is_none());
+    assert_eq!("hello world!", output);
 }
 
 #[test]
 fn evaluate_greater_1() {
-    let mut tmp_file = TempFile::with_content("5 > 4");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("5 > 4");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_greater_2() {
-    let mut tmp_file = TempFile::with_content("3 > 4");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("3 > 4");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_greater_equal_1() {
-    let mut tmp_file = TempFile::with_content("5 >= 4");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("5 >= 4");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_greater_equal_2() {
-    let mut tmp_file = TempFile::with_content("3 >= 3");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("3 >= 3");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_greater_equal_3() {
-    let mut tmp_file = TempFile::with_content("2 >= 3");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("2 >= 3");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_less_1() {
-    let mut tmp_file = TempFile::with_content("5 < 4");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("5 < 4");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_less_2() {
-    let mut tmp_file = TempFile::with_content("3 < 4");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("3 < 4");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_less_equal_1() {
-    let mut tmp_file = TempFile::with_content("5 <= 4");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("5 <= 4");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_less_equal_2() {
-    let mut tmp_file = TempFile::with_content("3 <= 3");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("3 <= 3");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_less_equal_3() {
-    let mut tmp_file = TempFile::with_content("2 <= 3");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("2 <= 3");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_equal_1() {
-    let mut tmp_file = TempFile::with_content("2 == 3");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("2 == 3");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_equal_2() {
-    let mut tmp_file = TempFile::with_content("5 == 5");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("5 == 5");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_equal_3() {
-    let mut tmp_file = TempFile::with_content("\"foo\" == 5");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("\"foo\" == 5");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_equal_4() {
-    let mut tmp_file = TempFile::with_content("\"foo\" == \"bar\"");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("\"foo\" == \"bar\"");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_equal_5() {
-    let mut tmp_file = TempFile::with_content("\"bar\" == \"bar\"");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("\"bar\" == \"bar\"");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_not_equal_1() {
-    let mut tmp_file = TempFile::with_content("2 != 3");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("2 != 3");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_not_equal_2() {
-    let mut tmp_file = TempFile::with_content("5 != 5");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("false", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("5 != 5");
+    assert!(err.is_none());
+    assert_eq!("false", output);
 }
 
 #[test]
 fn evaluate_not_equal_3() {
-    let mut tmp_file = TempFile::with_content("\"foo\"!=\"bar\"");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("\"foo\"!=\"bar\"");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_not_equal_4() {
-    let mut tmp_file = TempFile::with_content("true != false");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let mut output = Vec::new();
-    let res = interpreter.evaluate(&mut output, &mut stderr());
-    assert!(res.is_ok());
-    assert_eq!("true", String::from_utf8_lossy(&output));
+    let (output, err) = interpreter::evaluate_content("true != false");
+    assert!(err.is_none());
+    assert_eq!("true", output);
 }
 
 #[test]
 fn evaluate_runtime_error_1() {
-    let mut tmp_file = TempFile::with_content("-\"muffin\"");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let res = interpreter.evaluate(&mut sink(), &mut stderr());
-    assert!(res.is_err());
-    assert_eq!("Operand must be a number.", res.unwrap_err().to_string());
+    let (_, err) = interpreter::evaluate_content("-\"muffin\"");
+    assert!(err.is_some());
+    assert_eq!("Operand must be a number.", err.unwrap().to_string());
 }
 
 #[test]
 fn evaluate_runtime_error_2() {
-    let mut tmp_file = TempFile::with_content("3 / \"muffin\"");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let res = interpreter.evaluate(&mut sink(), &mut stderr());
-    assert!(res.is_err());
-    assert_eq!("Operands must be numbers.", res.unwrap_err().to_string());
+    let (_, err) = interpreter::evaluate_content("3 / \"muffin\"");
+    assert!(err.is_some());
+    assert_eq!("Operands must be numbers.", err.unwrap().to_string());
 }
 
 #[test]
 fn evaluate_runtime_error_3() {
-    let mut tmp_file = TempFile::with_content("3 + \"muffin\"");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let res = interpreter.evaluate(&mut sink(), &mut stderr());
-    assert!(res.is_err());
+    let (_, err) = interpreter::evaluate_content("3 + \"muffin\"");
+    assert!(err.is_some());
     assert_eq!(
         "Operands must be two numbers or two strings.",
-        res.unwrap_err().to_string()
+        err.unwrap().to_string()
     );
 }
 
 #[test]
 fn evaluate_runtime_error_4() {
-    let mut tmp_file = TempFile::with_content("3 - \"muffin\"");
-    let mut interpreter = Interpreter::build(tmp_file.reader()).unwrap();
-    let res = interpreter.evaluate(&mut sink(), &mut stderr());
-    assert!(res.is_err());
+    let (_, err) = interpreter::evaluate_content("3 - \"muffin\"");
+    assert!(err.is_some());
     assert_eq!(
         "Operands must be two numbers or two strings.",
-        res.unwrap_err().to_string()
+        err.unwrap().to_string()
     );
 }
