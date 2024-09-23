@@ -7,6 +7,7 @@ use std::{
 
 use crate::{
     environment::Environment,
+    errors::{ErrorMessage, InterpreterError},
     parser::{Declaration, Expr, Parser, Statement},
     scanner::{Literal, TokenType},
 };
@@ -33,14 +34,9 @@ impl Interpreter {
         Ok(Interpreter::new(parser))
     }
 
-    pub fn evaluate<T, U>(
-        &mut self,
-        output: &mut T,
-        err_output: &mut U,
-    ) -> Result<(), Box<dyn Error>>
+    pub fn evaluate<T>(&mut self, output: &mut T) -> Result<(), InterpreterError>
     where
         T: Write,
-        U: Write,
     {
         let environment = Environment::new();
         match self.parser.take() {
@@ -48,26 +44,27 @@ impl Interpreter {
                 match parser.parse_expression()? {
                     Some(expr) => {
                         let result = self.eval(&environment, &expr)?;
-                        write!(output, "{}", result)?;
+                        write!(output, "{}", result).expect("cannot write to output");
                     }
                     _ => {}
                 }
 
                 if let Some(errors) = parser.errors() {
-                    self.has_parsing_errors = true;
-                    write!(err_output, "{}", errors)?
+                    return Err(errors);
                 }
 
                 Ok(())
             }
-            None => Err("Interpreter's statements have already been consumed".into()),
+            None => Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                "Interpreter's statements have already been consumed",
+                None,
+            ))),
         }
     }
 
-    pub fn run<T, U>(&mut self, output: &mut T, err_output: &mut U) -> Result<(), Box<dyn Error>>
+    pub fn run<T>(&mut self, output: &mut T) -> Result<(), InterpreterError>
     where
         T: Write,
-        U: Write,
     {
         let environment = Environment::new();
         match self.parser.take() {
@@ -77,13 +74,15 @@ impl Interpreter {
                 }
 
                 if let Some(errors) = parser.errors() {
-                    self.has_parsing_errors = true;
-                    write!(err_output, "{}", errors)?;
+                    return Err(errors);
                 }
 
                 Ok(())
             }
-            None => Err("Interpreter's statements have already been consumed".into()),
+            None => Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                "Interpreter's statements have already been consumed",
+                None,
+            ))),
         }
     }
 
@@ -92,7 +91,7 @@ impl Interpreter {
         declaration: &Declaration,
         environment: &Environment<Type>,
         output: &mut T,
-    ) -> Result<Option<Type>, Box<dyn Error>>
+    ) -> Result<Option<Type>, InterpreterError>
     where
         T: Write,
     {
@@ -108,7 +107,8 @@ impl Interpreter {
                 Ok(None)
             }
             Declaration::Statement(Statement::Print(expr)) => {
-                writeln!(output, "{}", self.eval(environment, &expr)?)?;
+                writeln!(output, "{}", self.eval(environment, &expr)?)
+                    .expect("cannot write to output");
                 Ok(None)
             }
             Declaration::Statement(Statement::Expression(expr)) => {
@@ -128,20 +128,27 @@ impl Interpreter {
         &mut self,
         environment: &Environment<Type>,
         expression: &Expr,
-    ) -> Result<Type, Box<dyn Error>> {
+    ) -> Result<Type, InterpreterError> {
         match expression {
             Expr::Literal(token) => match token.token_type {
                 TokenType::True => Ok(Type::Boolean(true)),
                 TokenType::False => Ok(Type::Boolean(false)),
                 TokenType::Nil => Ok(Type::Nil),
-                _ if token.literal.is_some() => Ok(token.literal.as_ref().unwrap().as_ref().into()),
-                _ => panic!("oh no..."),
+                _ => Ok(token
+                    .literal
+                    .as_ref()
+                    .expect("token should have a literal")
+                    .as_ref()
+                    .into()),
             },
             Expr::Grouping(e) => self.eval(environment, e),
             Expr::Unary(t, e) => match t.token_type {
                 TokenType::Minus => match self.eval(environment, e)? {
                     Type::Number(n) => Ok(Type::Number(-n)),
-                    _ => Err("Operand must be a number.".into()),
+                    _ => Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                        "Operand must be a number.",
+                        Some(t.line),
+                    ))),
                 },
                 TokenType::Bang => Ok(Type::Boolean(!Interpreter::is_truthy(
                     self.eval(environment, e)?,
@@ -157,15 +164,20 @@ impl Interpreter {
                 (TokenType::Plus, Type::String(a), Type::String(b)) => {
                     Ok(Type::String(Rc::new(format!("{}{}", a, b))))
                 }
-                (TokenType::Plus, _, _) => {
-                    Err("Operands must be two numbers or two strings.".into())
-                }
+                (TokenType::Plus, _, _) => Err(InterpreterError::evaluating(
+                    "Operands must be two numbers or two strings.",
+                    t.line,
+                )),
                 (TokenType::Minus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a - b)),
-                (TokenType::Minus, _, _) => {
-                    Err("Operands must be two numbers or two strings.".into())
-                }
+                (TokenType::Minus, _, _) => Err(InterpreterError::evaluating(
+                    "Operands must be two numbers or two strings.",
+                    t.line,
+                )),
                 (TokenType::Slash, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a / b)),
-                (TokenType::Slash, _, _) => Err("Operands must be numbers.".into()),
+                (TokenType::Slash, _, _) => Err(InterpreterError::evaluating(
+                    "Operands must be numbers.",
+                    t.line,
+                )),
                 (TokenType::Star, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a * b)),
                 (TokenType::Greater, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a > b)),
                 (TokenType::GreaterEqual, Type::Number(a), Type::Number(b)) => {
@@ -195,17 +207,28 @@ impl Interpreter {
                 }
                 (TokenType::EqualEqual, _, _) => Ok(Type::Boolean(false)),
                 (TokenType::BangEqual, _, _) => Ok(Type::Boolean(false)),
-                _ => Err("Unrecognized binary expression".into()),
+                _ => Err(InterpreterError::evaluating(
+                    "Unrecognized binary expression",
+                    t.line,
+                )),
             },
             Expr::Variable(token) => match environment.get(&token.lexeme) {
                 Some(value) => Ok(value.clone()),
-                None => Err(format!("Undefined variable '{}'.", token.lexeme).into()),
+                None => Err(InterpreterError::evaluating(
+                    format!("Undefined variable '{}'.", token.lexeme),
+                    token.line,
+                )),
             },
             Expr::Assignment(token, expr) => {
                 let name = token.lexeme.to_owned();
                 let value = self.eval(environment, expr)?;
-                environment.assign(name, value.clone())?;
-                Ok(value)
+                match environment.assign(name, value.clone()) {
+                    Ok(()) => Ok(value),
+                    Err(()) => Err(InterpreterError::evaluating(
+                        format!("Undefined variable '{}'.", token.lexeme),
+                        token.line,
+                    )),
+                }
             }
         }
     }

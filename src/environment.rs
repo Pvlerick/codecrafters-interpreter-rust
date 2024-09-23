@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, error::Error, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Debug)]
 pub struct Environment<T>
@@ -28,7 +28,7 @@ where
         self.inner.borrow_mut().define(key, value);
     }
 
-    pub fn assign<K: ToString>(&self, key: K, value: T) -> Result<(), Box<dyn Error>> {
+    pub fn assign<K: ToString>(&self, key: K, value: T) -> Result<(), ()> {
         self.inner.borrow_mut().assign(key, value)
     }
 
@@ -68,7 +68,7 @@ where
         self.values.insert(key.to_string(), value);
     }
 
-    pub fn assign<K: ToString>(&mut self, key: K, value: T) -> Result<(), Box<dyn Error>> {
+    pub fn assign<K: ToString>(&mut self, key: K, value: T) -> Result<(), ()> {
         let key_s = key.to_string();
         if self.values.contains_key(&key_s) {
             self.values.insert(key_s, value);
@@ -76,7 +76,7 @@ where
         } else {
             match &self.enclosing {
                 Some(inner) => inner.borrow_mut().assign(key, value),
-                None => Err(format!("Undefined variable '{}'.", key_s).into()),
+                None => Err(()),
             }
         }
     }

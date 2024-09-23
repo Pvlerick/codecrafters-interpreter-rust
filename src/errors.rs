@@ -1,41 +1,86 @@
 use std::{error::Error, fmt::Display};
 
 #[derive(Debug)]
-pub struct ScanningError {
-    message: String,
+pub enum InterpreterError {
+    ScanningError(ErrorMessage),
+    ScanningErrors(Vec<ErrorMessage>),
+    ParsingErrors(Vec<ErrorMessage>),
+    InterpreterError(ErrorMessage),
+    RuntimeError(ErrorMessage),
 }
 
-impl Error for ScanningError {}
+impl InterpreterError {
+    pub fn scanning<T: ToString>(message: T) -> InterpreterError {
+        InterpreterError::ScanningError(ErrorMessage::new(message, None))
+    }
 
-impl From<String> for ScanningError {
-    fn from(value: String) -> Self {
-        Self { message: value }
+    pub fn parsing<T: ToString>(message: T) -> InterpreterError {
+        InterpreterError::ScanningError(ErrorMessage::new(message.to_string(), None))
+    }
+
+    pub fn evaluating<T: ToString>(message: T, line: usize) -> InterpreterError {
+        InterpreterError::InterpreterError(ErrorMessage::new(message, Some(line)))
     }
 }
 
-impl From<&str> for ScanningError {
-    fn from(value: &str) -> Self {
-        Self {
-            message: value.to_owned(),
-        }
-    }
-}
+impl Error for InterpreterError {}
 
-impl From<Vec<TokenError>> for ScanningError {
-    fn from(value: Vec<TokenError>) -> Self {
-        Self {
-            message: value
-                .into_iter()
-                .map(|i| i.message)
-                .collect::<Vec<_>>()
-                .join("\r"),
-        }
-    }
-}
-
-impl Display for ScanningError {
+impl Display for InterpreterError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
+        match self {
+            InterpreterError::ScanningError(msg) | InterpreterError::InterpreterError(msg) => {
+                write!(f, "{}", msg)
+            }
+            InterpreterError::ScanningErrors(msgs) | InterpreterError::ParsingErrors(msgs) => {
+                for msg in msgs {
+                    writeln!(f, "{}", msg)?;
+                }
+                Ok(())
+            }
+            InterpreterError::RuntimeError(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ErrorMessage {
+    message: String,
+    line: Option<usize>,
+}
+
+impl ErrorMessage {
+    pub fn new<T: ToString>(message: T, line: Option<usize>) -> Self {
+        Self {
+            message: message.to_string(),
+            line,
+        }
+    }
+}
+
+impl Display for ErrorMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.line {
+            Some(line) => write!(f, "[line {}] Error: {}.", line, self.message),
+            None => write!(f, "Error: {}.", self.message),
+        }
+    }
+}
+
+pub struct ParsingErrorsBuilder {
+    errors: Vec<ErrorMessage>,
+}
+
+impl ParsingErrorsBuilder {
+    pub fn new() -> Self {
+        Self { errors: Vec::new() }
+    }
+
+    pub fn add<T: ToString>(&mut self, message: T, line: usize) {
+        self.errors.push(ErrorMessage::new(message, Some(line)));
+    }
+
+    pub fn build(self) -> InterpreterError {
+        InterpreterError::ParsingErrors(self.errors)
     }
 }
 
@@ -74,6 +119,12 @@ impl Display for TokenError {
 #[derive(Debug)]
 pub struct ParsingErrors {
     errors: Vec<String>,
+}
+
+impl ParsingErrors {
+    pub fn new(errors: Vec<String>) -> Self {
+        Self { errors }
+    }
 }
 
 impl Error for ParsingErrors {}

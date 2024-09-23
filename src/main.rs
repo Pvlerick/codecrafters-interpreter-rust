@@ -1,10 +1,12 @@
 use std::env;
 use std::fs::File;
-use std::io::{self, stderr, stdout, BufReader, Write};
+use std::io::{self, stdout, BufReader, Write};
 
 use interpreter::Interpreter;
 use parser::Parser;
 use scanner::Scanner;
+
+use crate::errors::InterpreterError;
 
 pub mod environment;
 pub mod errors;
@@ -142,7 +144,7 @@ fn evaluate_file(file_path: &str) {
             let parser = Parser::new(tokens);
             let mut interpreter = Interpreter::new(parser);
 
-            match interpreter.evaluate(&mut stdout(), &mut stderr()) {
+            match interpreter.evaluate(&mut stdout()) {
                 Ok(()) => {}
                 Err(error) => {
                     eprintln!("{}", error);
@@ -169,16 +171,18 @@ fn run_file(file_path: &str) {
             let parser = Parser::new(tokens);
             let mut interpreter = Interpreter::new(parser);
 
-            match interpreter.run(&mut stdout(), &mut stderr()) {
+            match interpreter.run(&mut stdout()) {
                 Ok(()) => {}
                 Err(error) => {
                     eprintln!("{}", error);
-                    std::process::exit(70);
+                    match error {
+                        InterpreterError::ScanningError(_)
+                        | InterpreterError::ScanningErrors(_) => std::process::exit(70),
+                        InterpreterError::ParsingErrors(_)
+                        | InterpreterError::InterpreterError(_)
+                        | InterpreterError::RuntimeError(_) => std::process::exit(65),
+                    }
                 }
-            }
-
-            if interpreter.has_parsing_errors {
-                std::process::exit(65);
             }
         }
         Err(error) => println!("{}", error),

@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, fmt::Display, io::BufRead, rc::Rc};
 
-use crate::errors::{ScanningError, TokenError};
+use crate::errors::{InterpreterError, TokenError};
 
 pub struct Scanner<R>
 where
@@ -19,10 +19,12 @@ where
         }
     }
 
-    pub fn scan(mut self) -> Result<TokensIterator, ScanningError> {
+    pub fn scan(mut self) -> Result<TokensIterator, InterpreterError> {
         match self.reader.take() {
             Some(reader) => Ok(TokensIterator::new(reader)),
-            None => Err("Scanner's reader has already been consumed".into()),
+            None => Err(InterpreterError::scanning(
+                "Scanner's reader has already been consumed",
+            )),
         }
     }
 }

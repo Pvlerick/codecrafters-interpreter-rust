@@ -1,7 +1,7 @@
-use std::{cell::RefCell, error::Error, fmt::Display, io::BufRead, rc::Rc};
+use std::{cell::RefCell, fmt::Display, io::BufRead, rc::Rc};
 
 use crate::{
-    errors::{ParsingErrors, TokenError},
+    errors::{InterpreterError, ParsingErrorsBuilder, TokenError},
     scanner::{Scanner, Token, TokenType, TokensIterator},
     utils::StopOnFirstErrorIterator,
 };
@@ -28,7 +28,7 @@ primary        → NUMBER | STRING | "true" | "false" | "nil" | IDENTIFIER | "("
 
 pub struct Parser {
     tokens: Option<TokensIterator>,
-    errors: Rc<RefCell<Option<Vec<String>>>>,
+    errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>,
 }
 
 macro_rules! gramar_rule {
@@ -62,7 +62,7 @@ impl Parser {
         }
     }
 
-    pub fn build<R>(reader: R) -> Result<Self, Box<dyn Error>>
+    pub fn build<R>(reader: R) -> Result<Self, InterpreterError>
     where
         R: BufRead + 'static,
     {
@@ -72,28 +72,32 @@ impl Parser {
         Ok(Self::new(tokens))
     }
 
-    pub fn parse(&mut self) -> Result<DeclarationsIterator, Box<dyn Error>> {
+    pub fn parse(&mut self) -> Result<DeclarationsIterator, InterpreterError> {
         match self.tokens.take() {
             Some(tokens) => Ok(DeclarationsIterator::new(tokens, self.errors.clone())),
-            None => Err("Parser's tokens have already been consumed".into()),
+            None => Err(InterpreterError::parsing(
+                "Parser's tokens have already been consumed",
+            )),
         }
     }
 
-    pub fn parse_expression(&mut self) -> Result<Option<Expr>, Box<dyn Error>> {
+    pub fn parse_expression(&mut self) -> Result<Option<Expr>, InterpreterError> {
         match self.tokens.take() {
             Some(tokens) => {
                 match DeclarationsIterator::new(tokens, self.errors.clone()).next_expression() {
                     Some(expr) => Ok(Some(expr)),
-                    None => Err("No expression found.".into()),
+                    None => Err(InterpreterError::parsing("No expression found.")),
                 }
             }
-            None => Err("Parser's tokens have already been consumed".into()),
+            None => Err(InterpreterError::parsing(
+                "Parser's tokens have already been consumed",
+            )),
         }
     }
 
-    pub fn errors(&self) -> Option<ParsingErrors> {
+    pub fn errors(&self) -> Option<InterpreterError> {
         match self.tokens {
-            None => self.errors.take().map(|i| i.into()),
+            None => self.errors.take().map(|i| i.build()),
             Some(_) => None, // Parsing didn't occur yet
         }
     }
@@ -102,7 +106,7 @@ impl Parser {
 pub struct DeclarationsIterator {
     tokens: StopOnFirstErrorIterator<TokensIterator, Token, TokenError>,
     peeked: Option<Token>,
-    errors: Rc<RefCell<Option<Vec<String>>>>,
+    errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>,
 }
 
 impl Iterator for DeclarationsIterator {
@@ -120,7 +124,7 @@ impl Iterator for DeclarationsIterator {
 }
 
 impl DeclarationsIterator {
-    pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Option<Vec<String>>>>) -> Self {
+    pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>) -> Self {
         Self {
             tokens: StopOnFirstErrorIterator::new(tokens),
             peeked: None,
@@ -139,18 +143,11 @@ impl DeclarationsIterator {
         }
     }
 
-    fn add_error<T>(&mut self, msg: T)
-    where
-        T: Display,
-    {
+    fn add_error<T: ToString>(&mut self, msg: T) {
         self.errors
             .borrow_mut()
-            .get_or_insert_with(|| Vec::new())
-            .push(format!(
-                "[line {}] Error: {}.",
-                self.tokens.inner.current_line(),
-                msg
-            ));
+            .get_or_insert_with(|| ParsingErrorsBuilder::new())
+            .add(msg.to_string(), self.tokens.inner.current_line());
     }
 
     fn declaration(&mut self) -> Result<Option<Declaration>, TokenError> {
