@@ -1,12 +1,11 @@
-use std::error::Error;
+use std::{error::Error, io::BufReader};
 
 use interpreter_starter_rust::parser::{Expr, Parser};
 
-use super::TempFile;
+use super::reader::StrReader;
 
 #[allow(dead_code)]
-pub fn parse_content(content: &str) -> Result<Option<Expr>, Box<dyn Error>> {
-    let mut tmp_file = TempFile::with_content(content);
-    let mut parser = Parser::build(tmp_file.reader()).unwrap();
+pub fn parse_content(content: &'static str) -> Result<Option<Expr>, Box<dyn Error>> {
+    let mut parser = Parser::build(BufReader::new(StrReader::new(content))).unwrap();
     parser.parse_expression()
 }
