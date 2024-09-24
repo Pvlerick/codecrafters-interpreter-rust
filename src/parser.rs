@@ -10,8 +10,9 @@ use crate::{
 program        → declaration* EOF ;
 declaration    → varDecl | statement ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
-statement      → exprStmt | printStmt | block ;
+statement      → exprStmt | ifStmt | printStmt | block ;
 exprStmt       → expression ";" ;
+ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 printStmt      → "print" expression ";" ;
 block          → "{" declaration* "}" ;
 expression     → assignment ;
@@ -38,7 +39,7 @@ macro_rules! gramar_rule {
             match self.$base()? {
                 Some(expr) => {
                     ret_expr = expr;
-                    while let Some(operator) = self.peek_matches($token_types)? {
+                    while let Some(operator) = self.next_matches($token_types)? {
                         match self.$base()? {
                             Some(right) => ret_expr = Expr::binary(operator, ret_expr, right),
                             None => return Ok(None),
@@ -203,12 +204,16 @@ impl DeclarationsIterator {
     fn statement(&mut self) -> Result<Option<Statement>, ()> {
         match self.peek()? {
             Some(token) => match token.token_type {
+                TokenType::If => {
+                    let _ = self.next_token()?; // Discard if
+                    self.if_statement()
+                }
                 TokenType::LeftBrace => {
                     let _ = self.next_token()?; // Discard left brace
                     self.block()
                 }
                 TokenType::Print => {
-                    let _ = self.next_token()?; // Discard first tokens as it's "print"
+                    let _ = self.next_token()?; // Discard print
                     self.print_statement()
                 }
                 _ => self.expression_statement(),
@@ -217,9 +222,30 @@ impl DeclarationsIterator {
         }
     }
 
+    fn if_statement(&mut self) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::LeftParenthesis, "Expect '(' after 'if'")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParenthesis, "Expect ')' after if condition")?;
+        let then_branch = self.statement()?;
+        let else_branch = if self.next_matches(TokenType::Else)?.is_some() {
+            self.statement()?
+        } else {
+            None
+        };
+
+        match (condition, then_branch) {
+            (Some(condition), Some(then_branch)) => Ok(Some(Statement::If(
+                condition,
+                Box::new(then_branch),
+                else_branch.map(|i| Box::new(i)),
+            ))),
+            _ => Ok(None),
+        }
+    }
+
     fn block(&mut self) -> Result<Option<Statement>, ()> {
         let mut declarations = Vec::new();
-        while self.peek()?.is_some() && self.peek_matches(TokenType::RightBrace)?.is_none() {
+        while self.peek()?.is_some() && self.next_matches(TokenType::RightBrace)?.is_none() {
             match self.declaration()? {
                 Some(declaration) => declarations.push(declaration),
                 None => return self.add_error("Expect '}' after block"),
@@ -256,7 +282,7 @@ impl DeclarationsIterator {
     fn assignment(&mut self) -> Result<Option<Expr>, ()> {
         let expr = self.equality()?;
 
-        if self.peek_matches(TokenType::Equal)?.is_some() {
+        if self.next_matches(TokenType::Equal)?.is_some() {
             return match (self.assignment()?, expr) {
                 (Some(value), Some(Expr::Variable(token))) => {
                     Ok(Some(Expr::assignment(token, value)))
@@ -291,7 +317,7 @@ impl DeclarationsIterator {
 
     fn unary(&mut self) -> Result<Option<Expr>, ()> {
         use TokenType::*;
-        if let Some(operator) = self.peek_matches([Bang, Minus])? {
+        if let Some(operator) = self.next_matches([Bang, Minus])? {
             return match self.unary()? {
                 Some(right) => Ok(Some(Expr::unary(operator, right))),
                 None => Ok(None),
@@ -310,7 +336,7 @@ impl DeclarationsIterator {
                     False | True | Nil | Number | String => Ok(Some(Expr::literal(token))),
                     LeftParenthesis => match self.expression()? {
                         Some(expr) => {
-                            if self.peek_matches(RightParenthesis)?.is_some() {
+                            if self.next_matches(RightParenthesis)?.is_some() {
                                 return Ok(Some(Expr::grouping(expr)));
                             } else {
                                 self.add_error("Expect ')' after expression")?;
@@ -355,14 +381,14 @@ impl DeclarationsIterator {
         }
     }
 
-    fn peek_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Result<Option<Token>, ()> {
+    fn next_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Result<Option<Token>, ()> {
         match &self.peeked {
             Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.take()),
             Some(_) => Ok(None),
             None => match self.tokens.next() {
                 Some(Ok(token)) => {
                     self.peeked = Some(token);
-                    self.peek_matches(matcher)
+                    self.next_matches(matcher)
                 }
                 None => Ok(None),
                 Some(Err(error)) => self.add_error(error),
@@ -371,9 +397,13 @@ impl DeclarationsIterator {
     }
 
     fn consume_semicolon(&mut self) -> Result<(), ()> {
-        match self.peek_matches(TokenType::Semicolon)? {
+        self.consume(TokenType::Semicolon, "Expect ';' after expression")
+    }
+
+    fn consume(&mut self, token_type: TokenType, error_message: &str) -> Result<(), ()> {
+        match self.next_matches(token_type)? {
             Some(_) => Ok(()),
-            None => self.add_error("Expect ';' after expression"),
+            None => self.add_error(error_message),
         }
     }
 }
@@ -416,6 +446,7 @@ pub enum Statement {
     Print(Expr),
     Expression(Expr),
     Block(Box<Vec<Declaration>>),
+    If(Expr, Box<Statement>, Option<Box<Statement>>),
 }
 
 impl Into<Declaration> for Statement {
@@ -436,6 +467,14 @@ impl Display for Statement {
                     writeln!(f, "{}", statement)?;
                 }
                 writeln!(f, "}}")
+            }
+            If(condition, then_branch, None) => write!(f, "if {} then {}", condition, then_branch),
+            If(condition, then_branch, Some(else_branch)) => {
+                write!(
+                    f,
+                    "if {} then {} else {}",
+                    condition, then_branch, else_branch
+                )
             }
         }
     }

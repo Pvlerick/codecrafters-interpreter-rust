@@ -70,7 +70,7 @@ impl Interpreter {
         match self.parser.take() {
             Some(mut parser) => {
                 for declaration in parser.parse()? {
-                    self.execute(&declaration, &environment, output)?;
+                    self.execute_delcaration(&declaration, &environment, output)?;
                 }
 
                 if let Some(errors) = parser.errors() {
@@ -86,7 +86,7 @@ impl Interpreter {
         }
     }
 
-    fn execute<T>(
+    fn execute_delcaration<T>(
         &mut self,
         declaration: &Declaration,
         environment: &Environment<Type>,
@@ -111,19 +111,51 @@ impl Interpreter {
                     .expect("cannot write to output");
                 Ok(None)
             }
-            Declaration::Statement(Statement::Expression(expr)) => {
-                Ok(Some(self.eval(environment, &expr)?))
-            }
-            Declaration::Statement(Statement::Block(declarations)) => {
-                let mut enclosing_environment = environment.enclose();
-                for declaration in declarations.iter() {
-                    self.execute(declaration, &mut enclosing_environment, output)?;
-                }
-                Ok(None)
+            Declaration::Statement(statement) => {
+                self.execute_statement(statement, environment, output)
             }
         }
     }
 
+    fn execute_statement<T>(
+        &mut self,
+        statement: &Statement,
+        environment: &Environment<Type>,
+        output: &mut T,
+    ) -> Result<Option<Type>, InterpreterError>
+    where
+        T: Write,
+    {
+        match statement {
+            Statement::Print(expr) => {
+                writeln!(output, "{}", self.eval(environment, &expr)?)
+                    .expect("cannot write to output");
+                Ok(None)
+            }
+            Statement::Expression(expr) => Ok(Some(self.eval(environment, &expr)?)),
+            Statement::Block(declarations) => {
+                let mut enclosing_environment = environment.enclose();
+                for declaration in declarations.iter() {
+                    self.execute_delcaration(declaration, &mut enclosing_environment, output)?;
+                }
+                Ok(None)
+            }
+            Statement::If(condition, then_branch, None) => {
+                if Interpreter::is_truthy(self.eval(environment, &condition)?) {
+                    self.execute_statement(then_branch, environment, output)
+                } else {
+                    Ok(None)
+                }
+            }
+            Statement::If(condition, then_branch, Some(else_branch)) => {
+                if Interpreter::is_truthy(self.eval(environment, &condition)?) {
+                    self.execute_statement(then_branch, environment, output)
+                } else {
+                    self.execute_statement(else_branch, environment, output)
+                }
+            }
+        }
+    }
     fn eval(
         &mut self,
         environment: &Environment<Type>,
@@ -146,7 +178,7 @@ impl Interpreter {
                 TokenType::Minus => match self.eval(environment, e)? {
                     Type::Number(n) => Ok(Type::Number(-n)),
                     _ => Err(InterpreterError::InterpreterError(ErrorMessage::new(
-                        "Operand must be a number.",
+                        "Operand must be a number",
                         Some(t.line),
                     ))),
                 },
@@ -165,17 +197,17 @@ impl Interpreter {
                     Ok(Type::String(Rc::new(format!("{}{}", a, b))))
                 }
                 (TokenType::Plus, _, _) => Err(InterpreterError::evaluating(
-                    "Operands must be two numbers or two strings.",
+                    "Operands must be two numbers or two strings",
                     t.line,
                 )),
                 (TokenType::Minus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a - b)),
                 (TokenType::Minus, _, _) => Err(InterpreterError::evaluating(
-                    "Operands must be two numbers or two strings.",
+                    "Operands must be two numbers or two strings",
                     t.line,
                 )),
                 (TokenType::Slash, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a / b)),
                 (TokenType::Slash, _, _) => Err(InterpreterError::evaluating(
-                    "Operands must be numbers.",
+                    "Operands must be numbers",
                     t.line,
                 )),
                 (TokenType::Star, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a * b)),
