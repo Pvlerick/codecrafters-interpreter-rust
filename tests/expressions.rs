@@ -1,4 +1,4 @@
-use crate::common::parser;
+use crate::common::{interpreter, parser};
 
 mod common;
 
@@ -26,5 +26,22 @@ fn parser_complex_expression_1() {
     assert_eq!(
         "(> (group (- (+ 85.0 64.0) 59.0)) (* (group (- 30.0 85.0)) 2.0))",
         format!("{}", res.unwrap().unwrap())
+    );
+}
+
+#[test]
+fn run_expression_statements() {
+    let (output, err) = interpreter::run_content(
+        r#"(85 + 64 - 59) > (30 - 85) * 2;
+print !false;
+"world" + "hello" + "foo" + "quz" == "worldhellofooquz";
+print !false;"#,
+    );
+    assert!(err.is_none());
+    assert_eq!(
+        r#"true
+true
+"#,
+        output
     );
 }
