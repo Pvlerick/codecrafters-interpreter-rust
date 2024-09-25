@@ -141,14 +141,14 @@ impl Interpreter {
                 Ok(None)
             }
             Statement::If(condition, then_branch, None) => {
-                if Interpreter::is_truthy(self.eval(environment, &condition)?) {
+                if Interpreter::is_truthy(&self.eval(environment, &condition)?) {
                     self.execute_statement(then_branch, environment, output)
                 } else {
                     Ok(None)
                 }
             }
             Statement::If(condition, then_branch, Some(else_branch)) => {
-                if Interpreter::is_truthy(self.eval(environment, &condition)?) {
+                if Interpreter::is_truthy(&self.eval(environment, &condition)?) {
                     self.execute_statement(then_branch, environment, output)
                 } else {
                     self.execute_statement(else_branch, environment, output)
@@ -173,24 +173,38 @@ impl Interpreter {
                     .as_ref()
                     .into()),
             },
+            Expr::Logical(token, left, right) => match token.token_type {
+                TokenType::And | TokenType::Or => {
+                    let left = self.eval(environment, left)?;
+                    match (token.token_type, Interpreter::is_truthy(&left)) {
+                        (TokenType::Or, true) => Ok(left),
+                        (TokenType::And, false) => Ok(left),
+                        _ => self.eval(environment, right),
+                    }
+                }
+                _ => Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                    "Logical operator should be 'or' or 'and'",
+                    Some(token.line),
+                ))),
+            },
             Expr::Grouping(e) => self.eval(environment, e),
-            Expr::Unary(t, e) => match t.token_type {
-                TokenType::Minus => match self.eval(environment, e)? {
+            Expr::Unary(token, expr) => match token.token_type {
+                TokenType::Minus => match self.eval(environment, expr)? {
                     Type::Number(n) => Ok(Type::Number(-n)),
                     _ => Err(InterpreterError::InterpreterError(ErrorMessage::new(
                         "Operand must be a number",
-                        Some(t.line),
+                        Some(token.line),
                     ))),
                 },
                 TokenType::Bang => Ok(Type::Boolean(!Interpreter::is_truthy(
-                    self.eval(environment, e)?,
+                    &self.eval(environment, expr)?,
                 ))),
                 _ => panic!("oh no..."),
             },
-            Expr::Binary(t, l, r) => match (
-                t.token_type,
-                self.eval(environment, l)?,
-                self.eval(environment, r)?,
+            Expr::Binary(token, left, right) => match (
+                token.token_type,
+                self.eval(environment, left)?,
+                self.eval(environment, right)?,
             ) {
                 (TokenType::Plus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a + b)),
                 (TokenType::Plus, Type::String(a), Type::String(b)) => {
@@ -198,17 +212,17 @@ impl Interpreter {
                 }
                 (TokenType::Plus, _, _) => Err(InterpreterError::evaluating(
                     "Operands must be two numbers or two strings",
-                    t.line,
+                    token.line,
                 )),
                 (TokenType::Minus, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a - b)),
                 (TokenType::Minus, _, _) => Err(InterpreterError::evaluating(
                     "Operands must be two numbers or two strings",
-                    t.line,
+                    token.line,
                 )),
                 (TokenType::Slash, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a / b)),
                 (TokenType::Slash, _, _) => Err(InterpreterError::evaluating(
                     "Operands must be numbers",
-                    t.line,
+                    token.line,
                 )),
                 (TokenType::Star, Type::Number(a), Type::Number(b)) => Ok(Type::Number(a * b)),
                 (TokenType::Greater, Type::Number(a), Type::Number(b)) => Ok(Type::Boolean(a > b)),
@@ -241,7 +255,7 @@ impl Interpreter {
                 (TokenType::BangEqual, _, _) => Ok(Type::Boolean(false)),
                 _ => Err(InterpreterError::evaluating(
                     "Unrecognized binary expression",
-                    t.line,
+                    token.line,
                 )),
             },
             Expr::Variable(token) => match environment.get(&token.lexeme) {
@@ -265,10 +279,10 @@ impl Interpreter {
         }
     }
 
-    fn is_truthy(t: Type) -> bool {
+    fn is_truthy(t: &Type) -> bool {
         match t {
             Type::Nil => false,
-            Type::Boolean(b) => b,
+            Type::Boolean(b) => *b,
             _ => true,
         }
     }

@@ -16,7 +16,9 @@ ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 printStmt      → "print" expression ";" ;
 block          → "{" declaration* "}" ;
 expression     → assignment ;
-assignment     → IDENTIFIER "=" assignment | equality ;
+assignment     → IDENTIFIER "=" assignment | logic_or ;
+logic_or       → logic_and ( "or" logic_and )* ;
+logic_or       → equality ( "and" equality )* ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
@@ -31,8 +33,8 @@ pub struct Parser {
     errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>,
 }
 
-macro_rules! gramar_rule {
-    ($name:ident, $base:ident, $token_types:expr) => {
+macro_rules! grammar_rule_binary {
+    ($name:ident, $base:ident, $token_types:expr, $expr:ident) => {
         fn $name(&mut self) -> Result<Option<Expr>, ()> {
             let mut ret_expr: Expr;
 
@@ -41,7 +43,7 @@ macro_rules! gramar_rule {
                     ret_expr = expr;
                     while let Some(operator) = self.next_matches($token_types)? {
                         match self.$base()? {
-                            Some(right) => ret_expr = Expr::binary(operator, ret_expr, right),
+                            Some(right) => ret_expr = Expr::$expr(operator, ret_expr, right),
                             None => return Ok(None),
                         }
                     }
@@ -280,7 +282,7 @@ impl DeclarationsIterator {
     }
 
     fn assignment(&mut self) -> Result<Option<Expr>, ()> {
-        let expr = self.equality()?;
+        let expr = self.logic_or()?;
 
         if self.next_matches(TokenType::Equal)?.is_some() {
             return match (self.assignment()?, expr) {
@@ -297,12 +299,15 @@ impl DeclarationsIterator {
         Ok(expr)
     }
 
-    gramar_rule!(
+    grammar_rule_binary!(logic_or, logic_and, TokenType::Or, logical);
+    grammar_rule_binary!(logic_and, equality, TokenType::And, logical);
+    grammar_rule_binary!(
         equality,
         comparison,
-        [TokenType::BangEqual, TokenType::EqualEqual]
+        [TokenType::BangEqual, TokenType::EqualEqual],
+        binary
     );
-    gramar_rule!(
+    grammar_rule_binary!(
         comparison,
         term,
         [
@@ -310,10 +315,11 @@ impl DeclarationsIterator {
             TokenType::GreaterEqual,
             TokenType::Less,
             TokenType::LessEqual
-        ]
+        ],
+        binary
     );
-    gramar_rule!(term, factor, [TokenType::Minus, TokenType::Plus]);
-    gramar_rule!(factor, unary, [TokenType::Slash, TokenType::Star]);
+    grammar_rule_binary!(term, factor, [TokenType::Minus, TokenType::Plus], binary);
+    grammar_rule_binary!(factor, unary, [TokenType::Slash, TokenType::Star], binary);
 
     fn unary(&mut self) -> Result<Option<Expr>, ()> {
         use TokenType::*;
@@ -485,6 +491,7 @@ pub enum Expr {
     Binary(Token, Box<Expr>, Box<Expr>),
     Grouping(Box<Expr>),
     Literal(Token),
+    Logical(Token, Box<Expr>, Box<Expr>),
     Unary(Token, Box<Expr>),
     Variable(Token),
     Assignment(Token, Box<Expr>),
@@ -501,6 +508,9 @@ impl Expr {
 
     fn literal(token: Token) -> Self {
         Self::Literal(token)
+    }
+    fn logical(token: Token, left: Expr, right: Expr) -> Self {
+        Self::Logical(token, Box::new(left), Box::new(right))
     }
 
     fn unary(token: Token, expr: Expr) -> Self {
@@ -520,7 +530,9 @@ impl Display for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Expr::*;
         match self {
-            Binary(token, left, right) => write!(f, "({} {} {})", token.display(), left, right,),
+            Binary(token, left, right) | Logical(token, left, right) => {
+                write!(f, "({} {} {})", token.display(), left, right,)
+            }
             Grouping(expr) => write!(f, "(group {})", expr),
             Literal(token) => write!(f, "{}", token.display()),
             Unary(token, expr) => write!(f, "({} {})", token.display(), expr),
