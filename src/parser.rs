@@ -10,9 +10,10 @@ use crate::{
 program        → declaration* EOF ;
 declaration    → varDecl | statement ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
-statement      → exprStmt | ifStmt | printStmt | block ;
+statement      → exprStmt | ifStmt | whileStmt | printStmt | block ;
 exprStmt       → expression ";" ;
 ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
+whileStmt      → "while" "(" expression ")" statement ;
 printStmt      → "print" expression ";" ;
 block          → "{" declaration* "}" ;
 expression     → assignment ;
@@ -207,15 +208,19 @@ impl DeclarationsIterator {
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::If => {
-                    let _ = self.next_token()?; // Discard if
+                    let _ = self.next_token()?; // Discard "if"
                     self.if_statement()
                 }
+                TokenType::While => {
+                    let _ = self.next_token()?; // Discard "while"
+                    self.while_statement()
+                }
                 TokenType::LeftBrace => {
-                    let _ = self.next_token()?; // Discard left brace
+                    let _ = self.next_token()?; // Discard "{"
                     self.block()
                 }
                 TokenType::Print => {
-                    let _ = self.next_token()?; // Discard print
+                    let _ = self.next_token()?; // Discard "print"
                     self.print_statement()
                 }
                 _ => self.expression_statement(),
@@ -241,6 +246,17 @@ impl DeclarationsIterator {
                 Box::new(then_branch),
                 else_branch.map(|i| Box::new(i)),
             ))),
+            _ => Ok(None),
+        }
+    }
+
+    fn while_statement(&mut self) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::LeftParenthesis, "Expect '(' after 'while'")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParenthesis, "Expect ')' after condition")?;
+        let body = self.statement()?;
+        match (condition, body) {
+            (Some(condition), Some(body)) => Ok(Some(Statement::While(condition, Box::new(body)))),
             _ => Ok(None),
         }
     }
@@ -453,6 +469,7 @@ pub enum Statement {
     Expression(Expr),
     Block(Box<Vec<Declaration>>),
     If(Expr, Box<Statement>, Option<Box<Statement>>),
+    While(Expr, Box<Statement>),
 }
 
 impl Into<Declaration> for Statement {
@@ -482,6 +499,7 @@ impl Display for Statement {
                     condition, then_branch, else_branch
                 )
             }
+            While(condition, body) => write!(f, "while {} then {}", condition, body),
         }
     }
 }

@@ -154,6 +154,12 @@ impl Interpreter {
                     self.execute_statement(else_branch, environment, output)
                 }
             }
+            Statement::While(condition, body) => {
+                while Interpreter::is_truthy(&self.eval(environment, condition)?) {
+                    let _ = self.execute_statement(body, environment, output);
+                }
+                Ok(None)
+            }
         }
     }
     fn eval(

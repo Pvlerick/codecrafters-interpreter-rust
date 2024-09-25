@@ -63,3 +63,27 @@ fn r#if_emtpy_else() {
     assert!(err.is_none());
     assert_eq!("", output);
 }
+
+#[test]
+fn r#while_add_print_total() {
+    let (output, err) = interpreter::run_content(
+        r#"var i = 0;
+while (i < 3) i = i + 1;
+print i;"#,
+    );
+    assert!(err.is_none());
+    assert_eq!("3\n", output);
+}
+
+#[test]
+fn r#while_add_print_in_loop() {
+    let (output, err) = interpreter::run_content(
+        r#"var i = 0;
+while (i < 3) {
+    print i;
+    i = i + 1;
+}"#,
+    );
+    assert!(err.is_none());
+    assert_eq!("0\n1\n2\n", output);
+}
