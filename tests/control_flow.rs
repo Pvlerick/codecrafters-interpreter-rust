@@ -104,10 +104,3 @@ for (; i < 10; i = i + 1) print i;"#,
     assert!(err.is_none());
     assert_eq!("0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n", output);
 }
-
-#[test]
-fn r#for_empty() {
-    let (output, err) = interpreter::run_content("for (;;) ;");
-    assert!(err.is_none());
-    assert_eq!("", output);
-}

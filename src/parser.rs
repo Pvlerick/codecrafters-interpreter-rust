@@ -267,16 +267,16 @@ impl StatementsIterator {
             self.expression_statement()?
         };
 
-        let condition = if self.next_matches(TokenType::Semicolon)?.is_some() {
+        let condition = if self.peek_type(TokenType::Semicolon)? {
             None
         } else {
             self.expression()?
         };
+        self.consume_semicolon()?;
 
         let increment = if self.peek_type(TokenType::RightParenthesis)? {
             None
         } else {
-            println!("hey2");
             self.expression()?
         };
 
