@@ -112,11 +112,12 @@ fn parse_file(file_path: &str) {
     match tokens {
         Ok(tokens) => {
             let mut parser = Parser::new(tokens);
-            match parser.parse_expression() {
-                Ok(Some(expr)) => {
-                    println!("{}", expr);
+            match parser.parse() {
+                Ok(statements) => {
+                    for statement in statements {
+                        println!("{}", statement);
+                    }
                 }
-                Ok(None) => {}
                 Err(error) => {
                     eprintln!("{}", error);
                     std::process::exit(65);

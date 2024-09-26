@@ -8,7 +8,7 @@ use std::{
 use crate::{
     environment::Environment,
     errors::{ErrorMessage, InterpreterError},
-    parser::{Declaration, Expr, Parser, Statement},
+    parser::{Expr, Parser, Statement},
     scanner::{Literal, TokenType},
 };
 
@@ -69,8 +69,8 @@ impl Interpreter {
         let environment = Environment::new();
         match self.parser.take() {
             Some(mut parser) => {
-                for declaration in parser.parse()? {
-                    self.execute_delcaration(&declaration, &environment, output)?;
+                for statement in parser.parse()? {
+                    self.execute_statement(&statement, &environment, output)?;
                 }
 
                 if let Some(errors) = parser.errors() {
@@ -86,37 +86,6 @@ impl Interpreter {
         }
     }
 
-    fn execute_delcaration<T>(
-        &mut self,
-        declaration: &Declaration,
-        environment: &Environment<Type>,
-        output: &mut T,
-    ) -> Result<Option<Type>, InterpreterError>
-    where
-        T: Write,
-    {
-        match declaration {
-            Declaration::Variable(name, Some(expr)) => {
-                let name = name.to_owned();
-                let value = self.eval(environment, expr)?;
-                environment.define(name, value);
-                Ok(None)
-            }
-            Declaration::Variable(name, None) => {
-                environment.define(name, Type::Nil);
-                Ok(None)
-            }
-            Declaration::Statement(Statement::Print(expr)) => {
-                writeln!(output, "{}", self.eval(environment, &expr)?)
-                    .expect("cannot write to output");
-                Ok(None)
-            }
-            Declaration::Statement(statement) => {
-                self.execute_statement(statement, environment, output)
-            }
-        }
-    }
-
     fn execute_statement<T>(
         &mut self,
         statement: &Statement,
@@ -127,16 +96,26 @@ impl Interpreter {
         T: Write,
     {
         match statement {
+            Statement::Variable(name, Some(expr)) => {
+                let name = name.to_owned();
+                let value = self.eval(environment, expr)?;
+                environment.define(name, value);
+                Ok(None)
+            }
+            Statement::Variable(name, None) => {
+                environment.define(name, Type::Nil);
+                Ok(None)
+            }
             Statement::Print(expr) => {
                 writeln!(output, "{}", self.eval(environment, &expr)?)
                     .expect("cannot write to output");
                 Ok(None)
             }
             Statement::Expression(expr) => Ok(Some(self.eval(environment, &expr)?)),
-            Statement::Block(declarations) => {
+            Statement::Block(statements) => {
                 let mut enclosing_environment = environment.enclose();
-                for declaration in declarations.iter() {
-                    self.execute_delcaration(declaration, &mut enclosing_environment, output)?;
+                for statement in statements.iter() {
+                    self.execute_statement(statement, &mut enclosing_environment, output)?;
                 }
                 Ok(None)
             }

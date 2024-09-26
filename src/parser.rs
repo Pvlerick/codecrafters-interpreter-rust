@@ -14,6 +14,7 @@ statement      → exprStmt | ifStmt | whileStmt | printStmt | block ;
 exprStmt       → expression ";" ;
 ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 whileStmt      → "while" "(" expression ")" statement ;
+forStmt        → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
 printStmt      → "print" expression ";" ;
 block          → "{" declaration* "}" ;
 expression     → assignment ;
@@ -75,9 +76,9 @@ impl Parser {
         Ok(Self::new(tokens))
     }
 
-    pub fn parse(&mut self) -> Result<DeclarationsIterator, InterpreterError> {
+    pub fn parse(&mut self) -> Result<StatementsIterator, InterpreterError> {
         match self.tokens.take() {
-            Some(tokens) => Ok(DeclarationsIterator::new(tokens, self.errors.clone())),
+            Some(tokens) => Ok(StatementsIterator::new(tokens, self.errors.clone())),
             None => Err(InterpreterError::parsing(
                 "Parser's tokens have already been consumed",
             )),
@@ -87,9 +88,9 @@ impl Parser {
     pub fn parse_expression(&mut self) -> Result<Option<Expr>, InterpreterError> {
         match self.tokens.take() {
             Some(tokens) => {
-                match DeclarationsIterator::new(tokens, self.errors.clone()).next_expression() {
+                match StatementsIterator::new(tokens, self.errors.clone()).next_expression() {
                     Some(expr) => Ok(Some(expr)),
-                    None => Err(InterpreterError::parsing("No expression found.")),
+                    None => Err(InterpreterError::parsing("No expression found")),
                 }
             }
             None => Err(InterpreterError::parsing(
@@ -106,14 +107,14 @@ impl Parser {
     }
 }
 
-pub struct DeclarationsIterator {
+pub struct StatementsIterator {
     tokens: TokensIterator,
     peeked: Option<Token>,
     errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>,
 }
 
-impl Iterator for DeclarationsIterator {
-    type Item = Declaration;
+impl Iterator for StatementsIterator {
+    type Item = Statement;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.declaration() {
@@ -126,7 +127,7 @@ impl Iterator for DeclarationsIterator {
     }
 }
 
-impl DeclarationsIterator {
+impl StatementsIterator {
     pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>) -> Self {
         Self {
             tokens,
@@ -174,7 +175,7 @@ impl DeclarationsIterator {
         Ok(())
     }
 
-    fn declaration(&mut self) -> Result<Option<Declaration>, ()> {
+    fn declaration(&mut self) -> Result<Option<Statement>, ()> {
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::EOF => Ok(None),
@@ -185,20 +186,20 @@ impl DeclarationsIterator {
         }
     }
 
-    fn variable_declaration(&mut self) -> Result<Option<Declaration>, ()> {
-        let _ = self.next_token()?; // Discard var token
+    fn variable_declaration(&mut self) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::Var, "Expect 'var' in variable declaration")?;
         match self.next_token()? {
             Some(token) if token.token_type == TokenType::Identifier => {
                 let name = token.lexeme;
                 let initializer = match self.peek()? {
                     Some(token) if token.token_type == TokenType::Equal => {
-                        let _ = self.next_token(); // Discard = token
+                        self.consume(TokenType::Equal, "Expect '=' after variable identifier")?;
                         self.expression()?
                     }
                     _ => None,
                 };
                 self.consume_semicolon()?;
-                Ok(Some(Declaration::Variable(name, initializer)))
+                Ok(Some(Statement::Variable(name, initializer)))
             }
             _ => self.add_error("Expect variable name"),
         }
@@ -207,22 +208,11 @@ impl DeclarationsIterator {
     fn statement(&mut self) -> Result<Option<Statement>, ()> {
         match self.peek()? {
             Some(token) => match token.token_type {
-                TokenType::If => {
-                    let _ = self.next_token()?; // Discard "if"
-                    self.if_statement()
-                }
-                TokenType::While => {
-                    let _ = self.next_token()?; // Discard "while"
-                    self.while_statement()
-                }
-                TokenType::LeftBrace => {
-                    let _ = self.next_token()?; // Discard "{"
-                    self.block()
-                }
-                TokenType::Print => {
-                    let _ = self.next_token()?; // Discard "print"
-                    self.print_statement()
-                }
+                TokenType::If => self.if_statement(),
+                TokenType::While => self.while_statement(),
+                TokenType::For => self.for_statement(),
+                TokenType::LeftBrace => self.block(),
+                TokenType::Print => self.print_statement(),
                 _ => self.expression_statement(),
             },
             None => Ok(None),
@@ -230,6 +220,7 @@ impl DeclarationsIterator {
     }
 
     fn if_statement(&mut self) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::If, "Expect 'if' in if statement")?;
         self.consume(TokenType::LeftParenthesis, "Expect '(' after 'if'")?;
         let condition = self.expression()?;
         self.consume(TokenType::RightParenthesis, "Expect ')' after if condition")?;
@@ -251,17 +242,79 @@ impl DeclarationsIterator {
     }
 
     fn while_statement(&mut self) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::While, "Expect 'while' in while statement")?;
         self.consume(TokenType::LeftParenthesis, "Expect '(' after 'while'")?;
+
         let condition = self.expression()?;
+
         self.consume(TokenType::RightParenthesis, "Expect ')' after condition")?;
-        let body = self.statement()?;
-        match (condition, body) {
+
+        match (condition, self.statement()?) {
             (Some(condition), Some(body)) => Ok(Some(Statement::While(condition, Box::new(body)))),
             _ => Ok(None),
         }
     }
 
+    fn for_statement(&mut self) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::For, "Expect 'for' in for statement")?;
+        self.consume(TokenType::LeftParenthesis, "Expect '(' after 'for'")?;
+
+        let initializer = if self.next_matches(TokenType::Semicolon)?.is_some() {
+            None
+        } else if self.peek_type(TokenType::Var)? {
+            self.variable_declaration()?
+        } else {
+            self.expression_statement()?
+        };
+
+        let condition = if self.next_matches(TokenType::Semicolon)?.is_some() {
+            None
+        } else {
+            self.expression()?
+        };
+
+        let increment = if self.peek_type(TokenType::RightParenthesis)? {
+            None
+        } else {
+            println!("hey2");
+            self.expression()?
+        };
+
+        self.consume(TokenType::RightParenthesis, "Expect ')' after for clauses")?;
+
+        let mut body = match self.statement()? {
+            Some(statement) => statement,
+            None => {
+                return self.add_error("for statement needs to have a body");
+            }
+        };
+
+        if let Some(increment) = increment {
+            body = Statement::Block(Box::new(vec![body, Statement::Expression(increment)]))
+        }
+
+        body = Statement::While(
+            if let Some(condition) = condition {
+                condition
+            } else {
+                Expr::Literal(Token::new(
+                    TokenType::True,
+                    "true",
+                    self.tokens.current_line(),
+                ))
+            },
+            Box::new(body),
+        );
+
+        if let Some(initializer) = initializer {
+            body = Statement::Block(Box::new(vec![initializer, body]));
+        }
+
+        return Ok(Some(body));
+    }
+
     fn block(&mut self) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::LeftBrace, "Expect '{' to start a block")?;
         let mut declarations = Vec::new();
         while self.peek()?.is_some() && self.next_matches(TokenType::RightBrace)?.is_none() {
             match self.declaration()? {
@@ -274,6 +327,7 @@ impl DeclarationsIterator {
     }
 
     fn print_statement(&mut self) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::Print, "Expect 'print' in print statement")?;
         match self.expression()? {
             Some(expr) => {
                 self.consume_semicolon()?;
@@ -403,6 +457,10 @@ impl DeclarationsIterator {
         }
     }
 
+    fn peek_type(&mut self, token_type: TokenType) -> Result<bool, ()> {
+        Ok(self.peek()?.map_or(false, |i| i.token_type == token_type))
+    }
+
     fn next_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Result<Option<Token>, ()> {
         match &self.peeked {
             Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.take()),
@@ -447,41 +505,21 @@ impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
 }
 
 #[derive(Debug)]
-pub enum Declaration {
-    Variable(String, Option<Expr>),
-    Statement(Statement),
-}
-
-impl Display for Declaration {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use Declaration::*;
-        match self {
-            Variable(name, Some(expr)) => write!(f, "var {}={}", name, expr),
-            Variable(name, None) => write!(f, "var {}", name),
-            Statement(statement) => write!(f, "{}", statement),
-        }
-    }
-}
-
-#[derive(Debug)]
 pub enum Statement {
+    Variable(String, Option<Expr>),
     Print(Expr),
     Expression(Expr),
-    Block(Box<Vec<Declaration>>),
+    Block(Box<Vec<Statement>>),
     If(Expr, Box<Statement>, Option<Box<Statement>>),
     While(Expr, Box<Statement>),
-}
-
-impl Into<Declaration> for Statement {
-    fn into(self) -> Declaration {
-        Declaration::Statement(self)
-    }
 }
 
 impl Display for Statement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Statement::*;
         match self {
+            Variable(name, None) => write!(f, "var {}", name),
+            Variable(name, Some(expr)) => write!(f, "var {}={}", name, expr),
             Print(expr) => write!(f, "print {}", expr),
             Expression(expr) => write!(f, "{}", expr),
             Block(statements) => {
