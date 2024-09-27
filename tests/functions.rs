@@ -4,9 +4,16 @@ mod common;
 
 #[test]
 fn function_clock() {
-    let (output, err) = interpreter::run_content("print clock()");
+    let (_, err) = interpreter::run_content("print clock();");
     assert!(err.is_none());
-    assert_eq!("42\n", output);
+}
+
+#[test]
+fn function_env() {
+    std::env::set_var("LOX_TEST_ENV_VAR", "foo");
+    let (output, err) = interpreter::run_content("print env(\"LOX_TEST_ENV_VAR\");");
+    assert!(err.is_none());
+    assert_eq!("foo\n", output);
 }
 
 #[test]

@@ -34,12 +34,17 @@ impl Interpreter {
         Ok(Interpreter::new(parser))
     }
 
-    fn global_environment() -> Environment<Type> {
+    fn new_global_environment() -> Environment<Type> {
         let env = Environment::<Type>::new();
 
         env.define(
             "clock",
             Type::Function("clock".to_owned(), Rc::new(native_functions::Clock {})),
+        );
+
+        env.define(
+            "env",
+            Type::Function("env".to_owned(), Rc::new(native_functions::Env {})),
         );
 
         env
@@ -53,7 +58,7 @@ impl Interpreter {
             Some(mut parser) => {
                 match parser.parse_expression()? {
                     Some(expr) => {
-                        let result = self.eval(&Interpreter::global_environment(), &expr)?;
+                        let result = self.eval(&Interpreter::new_global_environment(), &expr)?;
                         write!(output, "{}", result).expect("cannot write to output");
                     }
                     _ => {}
@@ -76,7 +81,7 @@ impl Interpreter {
     where
         T: Write,
     {
-        let environment = Environment::new();
+        let environment = Interpreter::new_global_environment();
         match self.parser.take() {
             Some(mut parser) => {
                 for statement in parser.parse()? {
@@ -362,7 +367,9 @@ trait Function: Debug + Display {
 
 mod native_functions {
     use std::{
+        env,
         fmt::Display,
+        rc::Rc,
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -391,6 +398,35 @@ mod native_functions {
     impl Display for Clock {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "clock()")
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct Env {}
+
+    impl Function for Env {
+        fn arity(&self) -> usize {
+            1
+        }
+
+        fn call(
+            &self,
+            _interpreter: &mut super::Interpreter,
+            arguments: Vec<Type>,
+        ) -> Result<Type, ()> {
+            match arguments.as_slice() {
+                [Type::String(key)] => match env::var(key.as_str()) {
+                    Ok(value) => Ok(Type::String(Rc::new(value))),
+                    Err(_) => Ok(Type::Nil),
+                },
+                _ => Err(()),
+            }
+        }
+    }
+
+    impl Display for Env {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "env(key)")
         }
     }
 }
