@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    fmt::Display,
+    fmt::{Debug, Display},
     io::{BufRead, Write},
     rc::Rc,
 };
@@ -261,6 +261,28 @@ impl Interpreter {
                     )),
                 }
             }
+            Expr::Call(callee, right_paren, arguments) => {
+                let callee = self.eval(environment, callee)?;
+
+                let mut args = Vec::new();
+                for arg in arguments.iter() {
+                    args.push(self.eval(environment, arg)?);
+                }
+
+                match callee {
+                    Type::Function(name, func) => match func.call(self, args) {
+                        Ok(t) => Ok(t),
+                        Err(()) => Err(InterpreterError::evaluating(
+                            format!("Failed call to function '{}'", name),
+                            right_paren.line,
+                        )),
+                    },
+                    _ => Err(InterpreterError::evaluating(
+                        "Can only call functions and classes",
+                        right_paren.line,
+                    )),
+                }
+            }
         }
     }
 
@@ -279,6 +301,7 @@ enum Type {
     Boolean(bool),
     Number(f64),
     String(Rc<String>),
+    Function(String, Rc<dyn Function>),
 }
 
 impl Display for Type {
@@ -288,6 +311,7 @@ impl Display for Type {
             Type::Number(n) => write!(f, "{}", n),
             Type::String(s) => write!(f, "{}", s),
             Type::Boolean(b) => write!(f, "{}", b),
+            Type::Function(_, _) => todo!(),
         }
     }
 }
@@ -298,5 +322,11 @@ impl From<&Literal> for Type {
             Literal::Digit(n) => Type::Number(*n),
             Literal::String(s) => Type::String(s.clone()),
         }
+    }
+}
+
+trait Function: Debug + Display {
+    fn call(&self, _interpreter: &mut Interpreter, _arguments: Vec<Type>) -> Result<Type, ()> {
+        todo!()
     }
 }

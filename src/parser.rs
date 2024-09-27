@@ -25,7 +25,9 @@ equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
-unary          → ( "!" | "-" ) unary | primary ;
+unary          → ( "!" | "-" ) unary | call ;
+call           → primary ( "(" arguments? ")" )* ;
+arguments      → expression ( "," expression )* ;
 primary        → NUMBER | STRING | "true" | "false" | "nil" | IDENTIFIER | "(" expression ")" ;
 
 */
@@ -400,7 +402,46 @@ impl StatementsIterator {
             };
         }
 
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> Result<Option<Expr>, ()> {
+        let mut expr = self.primary()?;
+
+        loop {
+            if self.next_matches(TokenType::LeftParenthesis)?.is_some() {
+                if let Some(callee) = expr {
+                    expr = self.finish_call(callee)?;
+                }
+            } else {
+                break;
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr) -> Result<Option<Expr>, ()> {
+        let mut arguments = Vec::new();
+
+        if !(self.next_matches(TokenType::RightParenthesis)?.is_some()) {
+            loop {
+                if arguments.len() >= 255 {
+                    return self.add_error("Can't have more than 255 arguments.");
+                }
+                if let Some(expr) = self.expression()? {
+                    arguments.push(expr);
+                }
+                if self.next_matches(TokenType::Comma)?.is_none() {
+                    break;
+                }
+            }
+        }
+
+        let right_paren =
+            self.consume(TokenType::RightParenthesis, "Expect ')' after arguments")?;
+
+        Ok(Some(Expr::call(callee, right_paren, arguments)))
     }
 
     fn primary(&mut self) -> Result<Option<Expr>, ()> {
@@ -476,13 +517,13 @@ impl StatementsIterator {
         }
     }
 
-    fn consume_semicolon(&mut self) -> Result<(), ()> {
+    fn consume_semicolon(&mut self) -> Result<Token, ()> {
         self.consume(TokenType::Semicolon, "Expect ';' after expression")
     }
 
-    fn consume(&mut self, token_type: TokenType, error_message: &str) -> Result<(), ()> {
+    fn consume(&mut self, token_type: TokenType, error_message: &str) -> Result<Token, ()> {
         match self.next_matches(token_type)? {
-            Some(_) => Ok(()),
+            Some(token) => Ok(token),
             None => self.add_error(error_message),
         }
     }
@@ -551,6 +592,7 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     Variable(Token),
     Assignment(Token, Box<Expr>),
+    Call(Box<Expr>, Token, Box<Vec<Expr>>),
 }
 
 impl Expr {
@@ -580,6 +622,10 @@ impl Expr {
     fn assignment(token: Token, expr: Expr) -> Self {
         Self::Assignment(token, Box::new(expr))
     }
+
+    fn call(callee: Expr, right_paren: Token, arguments: Vec<Expr>) -> Self {
+        Self::Call(Box::new(callee), right_paren, Box::new(arguments))
+    }
 }
 
 impl Display for Expr {
@@ -594,6 +640,13 @@ impl Display for Expr {
             Unary(token, expr) => write!(f, "({} {})", token.display(), expr),
             Variable(token) => write!(f, "(var \"{}\")", token.display()),
             Assignment(name, expr) => write!(f, "(assignment {}={})", name, expr),
+            Call(callee, _, arguments) => {
+                write!(f, "fun {} (", callee)?;
+                for arg in arguments.iter() {
+                    write!(f, "{}, ", arg)?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }
