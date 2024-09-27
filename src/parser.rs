@@ -8,7 +8,10 @@ use crate::{
 /* Grammar:
 
 program        → declaration* EOF ;
-declaration    → varDecl | statement ;
+declaration    → funcDecl | varDecl | statement ;
+funcDecl       → "fun" function ;
+function       → IDENTIFIER "(" parameters? ")" block ;
+parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 statement      → exprStmt | ifStmt | whileStmt | printStmt | block ;
 exprStmt       → expression ";" ;
@@ -181,9 +184,43 @@ impl StatementsIterator {
         match self.peek()? {
             Some(token) => match token.token_type {
                 TokenType::EOF => Ok(None),
+                TokenType::Fun => self.function(FunctionKind::Function),
                 TokenType::Var => self.variable_declaration(),
                 _ => Ok(self.statement()?.map(|i| i.into())),
             },
+            None => Ok(None),
+        }
+    }
+
+    fn function(&mut self, kind: FunctionKind) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::Fun, "Expect 'fun' in a function delcaration")?;
+
+        let name = self.consume(TokenType::Identifier, format!("Expect {} name", kind))?;
+
+        self.consume(
+            TokenType::LeftParenthesis,
+            format!("Expect '(' after {} name", kind),
+        )?;
+
+        let mut parameters = Vec::new();
+        if !(self.peek_type(TokenType::RightParenthesis)?) {
+            loop {
+                if parameters.len() >= 255 {
+                    return self.add_error("Can't have more than 255 parameters.");
+                }
+                parameters.push(self.consume(TokenType::Identifier, "Expect parameter name")?);
+                if self.next_matches(TokenType::Comma)?.is_none() {
+                    break;
+                }
+            }
+        }
+
+        match self.block()? {
+            Some(body) => Ok(Some(Statement::Function(
+                name.lexeme,
+                Box::new(parameters),
+                Box::new(body),
+            ))),
             None => Ok(None),
         }
     }
@@ -521,7 +558,11 @@ impl StatementsIterator {
         self.consume(TokenType::Semicolon, "Expect ';' after expression")
     }
 
-    fn consume(&mut self, token_type: TokenType, error_message: &str) -> Result<Token, ()> {
+    fn consume<S: ToString>(
+        &mut self,
+        token_type: TokenType,
+        error_message: S,
+    ) -> Result<Token, ()> {
         match self.next_matches(token_type)? {
             Some(token) => Ok(token),
             None => self.add_error(error_message),
@@ -547,6 +588,7 @@ impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
 
 #[derive(Debug)]
 pub enum Statement {
+    Function(String, Box<Vec>, Box<Statement>),
     Variable(String, Option<Expr>),
     Print(Expr),
     Expression(Expr),
@@ -647,6 +689,18 @@ impl Display for Expr {
                 }
                 write!(f, ")")
             }
+        }
+    }
+}
+
+enum FunctionKind {
+    Function,
+}
+
+impl Display for FunctionKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FunctionKind::Function => write!(f, "function"),
         }
     }
 }
