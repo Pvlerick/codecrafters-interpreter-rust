@@ -25,6 +25,12 @@ impl InterpreterError {
 
 impl Error for InterpreterError {}
 
+impl<T> Into<Result<T, Self>> for InterpreterError {
+    fn into(self) -> Result<T, Self> {
+        Err(self)
+    }
+}
+
 impl Display for InterpreterError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

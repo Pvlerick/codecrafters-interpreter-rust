@@ -34,16 +34,26 @@ impl Interpreter {
         Ok(Interpreter::new(parser))
     }
 
+    fn global_environment() -> Environment<Type> {
+        let env = Environment::<Type>::new();
+
+        env.define(
+            "clock",
+            Type::Function("clock".to_owned(), Rc::new(native_functions::Clock {})),
+        );
+
+        env
+    }
+
     pub fn evaluate<T>(&mut self, output: &mut T) -> Result<(), InterpreterError>
     where
         T: Write,
     {
-        let environment = Environment::new();
         match self.parser.take() {
             Some(mut parser) => {
                 match parser.parse_expression()? {
                     Some(expr) => {
-                        let result = self.eval(&environment, &expr)?;
+                        let result = self.eval(&Interpreter::global_environment(), &expr)?;
                         write!(output, "{}", result).expect("cannot write to output");
                     }
                     _ => {}
@@ -270,13 +280,28 @@ impl Interpreter {
                 }
 
                 match callee {
-                    Type::Function(name, func) => match func.call(self, args) {
-                        Ok(t) => Ok(t),
-                        Err(()) => Err(InterpreterError::evaluating(
-                            format!("Failed call to function '{}'", name),
-                            right_paren.line,
-                        )),
-                    },
+                    Type::Function(name, func) => {
+                        if args.len() != func.arity() {
+                            return InterpreterError::evaluating(
+                                format!(
+                                    "Expected {} arguments for function '{}' but got {}",
+                                    func.arity(),
+                                    name,
+                                    args.len()
+                                ),
+                                right_paren.line,
+                            )
+                            .into();
+                        }
+                        match func.call(self, args) {
+                            Ok(t) => Ok(t),
+                            Err(()) => InterpreterError::evaluating(
+                                format!("Failed call to function '{}'", name),
+                                right_paren.line,
+                            )
+                            .into(),
+                        }
+                    }
                     _ => Err(InterpreterError::evaluating(
                         "Can only call functions and classes",
                         right_paren.line,
@@ -328,5 +353,44 @@ impl From<&Literal> for Type {
 trait Function: Debug + Display {
     fn call(&self, _interpreter: &mut Interpreter, _arguments: Vec<Type>) -> Result<Type, ()> {
         todo!()
+    }
+
+    fn arity(&self) -> usize {
+        todo!()
+    }
+}
+
+mod native_functions {
+    use std::{
+        fmt::Display,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use super::{Function, Type};
+
+    #[derive(Debug)]
+    pub struct Clock {}
+
+    impl Function for Clock {
+        fn arity(&self) -> usize {
+            0
+        }
+
+        fn call(
+            &self,
+            _interpreter: &mut super::Interpreter,
+            _arguments: Vec<super::Type>,
+        ) -> Result<super::Type, ()> {
+            match SystemTime::now().duration_since(UNIX_EPOCH) {
+                Ok(duration) => Ok(Type::Number(duration.as_secs() as f64)),
+                Err(_) => Err(()),
+            }
+        }
+    }
+
+    impl Display for Clock {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "clock()")
+        }
     }
 }

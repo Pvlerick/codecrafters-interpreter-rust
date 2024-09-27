@@ -424,7 +424,7 @@ impl StatementsIterator {
     fn finish_call(&mut self, callee: Expr) -> Result<Option<Expr>, ()> {
         let mut arguments = Vec::new();
 
-        if !(self.next_matches(TokenType::RightParenthesis)?.is_some()) {
+        if !(self.peek_type(TokenType::RightParenthesis)?) {
             loop {
                 if arguments.len() >= 255 {
                     return self.add_error("Can't have more than 255 arguments.");
