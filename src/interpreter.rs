@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     fmt::{Debug, Display},
-    io::{BufRead, Write},
+    io::{stdout, BufRead, Write},
     rc::Rc,
 };
 
@@ -14,6 +14,7 @@ use crate::{
 
 pub struct Interpreter {
     parser: Option<Parser>,
+    global_environment: Environment<Type>,
     pub has_parsing_errors: bool,
 }
 
@@ -21,6 +22,7 @@ impl Interpreter {
     pub fn new(parser: Parser) -> Self {
         Self {
             parser: Some(parser),
+            global_environment: Interpreter::new_global_environment(),
             has_parsing_errors: false,
         }
     }
@@ -81,7 +83,7 @@ impl Interpreter {
     where
         T: Write,
     {
-        let environment = Interpreter::new_global_environment();
+        let environment = self.global_environment.clone();
         match self.parser.take() {
             Some(mut parser) => {
                 for statement in parser.parse()? {
@@ -111,6 +113,21 @@ impl Interpreter {
         T: Write,
     {
         match statement {
+            Statement::Function(name, parameters, body) => {
+                environment.define(
+                    name,
+                    Type::Function(
+                        name.to_owned(),
+                        Rc::new(LoxFunction::new(
+                            name,
+                            parameters.iter().map(|i| i.lexeme.to_string()).collect(),
+                            body.clone(),
+                        )),
+                    ),
+                );
+
+                Ok(None)
+            }
             Statement::Variable(name, Some(expr)) => {
                 let name = name.to_owned();
                 let value = self.eval(environment, expr)?;
@@ -298,13 +315,9 @@ impl Interpreter {
                             )
                             .into();
                         }
-                        match func.call(self, args) {
-                            Ok(t) => Ok(t),
-                            Err(()) => InterpreterError::evaluating(
-                                format!("Failed call to function '{}'", name),
-                                right_paren.line,
-                            )
-                            .into(),
+                        match func.call(self, args, right_paren.line)? {
+                            Some(t) => Ok(t),
+                            None => Ok(Type::Nil),
                         }
                     }
                     _ => Err(InterpreterError::evaluating(
@@ -341,7 +354,7 @@ impl Display for Type {
             Type::Number(n) => write!(f, "{}", n),
             Type::String(s) => write!(f, "{}", s),
             Type::Boolean(b) => write!(f, "{}", b),
-            Type::Function(_, _) => todo!(),
+            Type::Function(n, _) => write!(f, "{}()", n),
         }
     }
 }
@@ -356,12 +369,58 @@ impl From<&Literal> for Type {
 }
 
 trait Function: Debug + Display {
-    fn call(&self, _interpreter: &mut Interpreter, _arguments: Vec<Type>) -> Result<Type, ()> {
-        todo!()
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Type>,
+        line: usize,
+    ) -> Result<Option<Type>, InterpreterError>;
+
+    fn arity(&self) -> usize;
+}
+
+#[derive(Debug)]
+struct LoxFunction {
+    name: String,
+    parameters: Vec<String>,
+    body: Rc<Statement>,
+}
+
+impl LoxFunction {
+    fn new<T: ToString>(name: T, parameters: Vec<String>, body: Rc<Statement>) -> Self {
+        Self {
+            name: name.to_string(),
+            parameters,
+            body,
+        }
+    }
+}
+
+impl Function for LoxFunction {
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Type>,
+        _: usize,
+    ) -> Result<Option<Type>, InterpreterError> {
+        let env = Environment::enclose(&interpreter.global_environment);
+
+        for arg in self.parameters.iter().zip(arguments) {
+            env.define(arg.0, arg.1);
+        }
+
+        //FIXME Should be able to customize the output
+        interpreter.execute_statement(&self.body, &env, &mut stdout())
     }
 
     fn arity(&self) -> usize {
-        todo!()
+        self.parameters.len()
+    }
+}
+
+impl Display for LoxFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}()", self.name)
     }
 }
 
@@ -373,7 +432,9 @@ mod native_functions {
         time::{SystemTime, UNIX_EPOCH},
     };
 
-    use super::{Function, Type};
+    use crate::errors::{ErrorMessage, InterpreterError};
+
+    use super::{Function, Interpreter, Type};
 
     #[derive(Debug)]
     pub struct Clock {}
@@ -385,12 +446,16 @@ mod native_functions {
 
         fn call(
             &self,
-            _interpreter: &mut super::Interpreter,
-            _arguments: Vec<super::Type>,
-        ) -> Result<super::Type, ()> {
+            _: &mut Interpreter,
+            _: Vec<super::Type>,
+            line: usize,
+        ) -> Result<Option<super::Type>, InterpreterError> {
             match SystemTime::now().duration_since(UNIX_EPOCH) {
-                Ok(duration) => Ok(Type::Number(duration.as_secs() as f64)),
-                Err(_) => Err(()),
+                Ok(duration) => Ok(Some(Type::Number(duration.as_secs() as f64))),
+                Err(error) => Err(InterpreterError::RuntimeError(ErrorMessage::new(
+                    format!("System time error: {}", error),
+                    Some(line),
+                ))),
             }
         }
     }
@@ -411,15 +476,19 @@ mod native_functions {
 
         fn call(
             &self,
-            _interpreter: &mut super::Interpreter,
+            _: &mut Interpreter,
             arguments: Vec<Type>,
-        ) -> Result<Type, ()> {
+            line: usize,
+        ) -> Result<Option<Type>, InterpreterError> {
             match arguments.as_slice() {
                 [Type::String(key)] => match env::var(key.as_str()) {
-                    Ok(value) => Ok(Type::String(Rc::new(value))),
-                    Err(_) => Ok(Type::Nil),
+                    Ok(value) => Ok(Some(Type::String(Rc::new(value)))),
+                    Err(_) => Ok(Some(Type::Nil)),
                 },
-                _ => Err(()),
+                _ => Err(InterpreterError::RuntimeError(ErrorMessage::new(
+                    "Invalid argument to 'env' function",
+                    Some(line),
+                ))),
             }
         }
     }

@@ -219,7 +219,7 @@ impl StatementsIterator {
             Some(body) => Ok(Some(Statement::Function(
                 name.lexeme,
                 Box::new(parameters),
-                Box::new(body),
+                Rc::new(body),
             ))),
             None => Ok(None),
         }
@@ -588,7 +588,7 @@ impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
 
 #[derive(Debug)]
 pub enum Statement {
-    Function(String, Box<Vec>, Box<Statement>),
+    Function(String, Box<Vec<Token>>, Rc<Statement>),
     Variable(String, Option<Expr>),
     Print(Expr),
     Expression(Expr),
@@ -601,6 +601,7 @@ impl Display for Statement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Statement::*;
         match self {
+            Function(name, _, _) => write!(f, "fun {}(...)", name),
             Variable(name, None) => write!(f, "var {}", name),
             Variable(name, Some(expr)) => write!(f, "var {}={}", name, expr),
             Print(expr) => write!(f, "print {}", expr),

@@ -37,6 +37,17 @@ where
     }
 }
 
+impl<T> Clone for Environment<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
 #[derive(Debug)]
 struct Inner<T>
 where
