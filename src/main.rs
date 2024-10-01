@@ -1,6 +1,6 @@
 use std::env;
 use std::fs::File;
-use std::io::{self, stdout, BufReader, Write};
+use std::io::{self, BufReader, Write};
 
 use interpreter::Interpreter;
 use parser::Parser;
@@ -144,7 +144,7 @@ fn evaluate_file(file_path: &str) {
             let parser = Parser::new(tokens);
             let mut interpreter = Interpreter::new(parser);
 
-            match interpreter.evaluate(&mut stdout()) {
+            match interpreter.evaluate() {
                 Ok(()) => {}
                 Err(error) => {
                     eprintln!("{}", error);
@@ -171,7 +171,7 @@ fn run_file(file_path: &str) {
             let parser = Parser::new(tokens);
             let mut interpreter = Interpreter::new(parser);
 
-            match interpreter.run(&mut stdout()) {
+            match interpreter.run() {
                 Ok(()) => {}
                 Err(error) => {
                     eprintln!("{}", error);

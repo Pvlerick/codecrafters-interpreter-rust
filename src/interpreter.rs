@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     error::Error,
     fmt::{Debug, Display},
     io::{stdout, BufRead, Write},
@@ -15,6 +16,7 @@ use crate::{
 pub struct Interpreter {
     parser: Option<Parser>,
     global_environment: Environment<Type>,
+    output: Rc<RefCell<dyn Write>>,
     pub has_parsing_errors: bool,
 }
 
@@ -23,17 +25,27 @@ impl Interpreter {
         Self {
             parser: Some(parser),
             global_environment: Interpreter::new_global_environment(),
+            output: Rc::new(RefCell::new(stdout())),
             has_parsing_errors: false,
         }
     }
 
-    pub fn build<R>(reader: R) -> Result<Self, Box<dyn Error>>
+    pub fn with_output(parser: Parser, output: Rc<RefCell<dyn Write>>) -> Self {
+        Self {
+            parser: Some(parser),
+            global_environment: Interpreter::new_global_environment(),
+            output,
+            has_parsing_errors: false,
+        }
+    }
+
+    pub fn build<R>(reader: R, output: Rc<RefCell<dyn Write>>) -> Result<Self, Box<dyn Error>>
     where
         R: BufRead + 'static,
     {
         let parser = Parser::build(reader)?;
 
-        Ok(Interpreter::new(parser))
+        Ok(Interpreter::with_output(parser, output))
     }
 
     fn new_global_environment() -> Environment<Type> {
@@ -52,16 +64,14 @@ impl Interpreter {
         env
     }
 
-    pub fn evaluate<T>(&mut self, output: &mut T) -> Result<(), InterpreterError>
-    where
-        T: Write,
-    {
+    pub fn evaluate(&mut self) -> Result<(), InterpreterError> {
         match self.parser.take() {
             Some(mut parser) => {
                 match parser.parse_expression()? {
                     Some(expr) => {
                         let result = self.eval(&Interpreter::new_global_environment(), &expr)?;
-                        write!(output, "{}", result).expect("cannot write to output");
+                        write!(self.output.borrow_mut(), "{}", result)
+                            .expect("cannot write to output");
                     }
                     _ => {}
                 }
@@ -79,15 +89,12 @@ impl Interpreter {
         }
     }
 
-    pub fn run<T>(&mut self, output: &mut T) -> Result<(), InterpreterError>
-    where
-        T: Write,
-    {
+    pub fn run(&mut self) -> Result<(), InterpreterError> {
         let environment = self.global_environment.clone();
         match self.parser.take() {
             Some(mut parser) => {
                 for statement in parser.parse()? {
-                    self.execute_statement(&statement, &environment, output)?;
+                    self.execute_statement(&statement, &environment)?;
                 }
 
                 if let Some(errors) = parser.errors() {
@@ -103,15 +110,11 @@ impl Interpreter {
         }
     }
 
-    fn execute_statement<T>(
+    fn execute_statement(
         &mut self,
         statement: &Statement,
         environment: &Environment<Type>,
-        output: &mut T,
-    ) -> Result<Option<Type>, InterpreterError>
-    where
-        T: Write,
-    {
+    ) -> Result<Option<Type>, InterpreterError> {
         match statement {
             Statement::Function(name, parameters, body) => {
                 environment.define(
@@ -139,35 +142,35 @@ impl Interpreter {
                 Ok(None)
             }
             Statement::Print(expr) => {
-                writeln!(output, "{}", self.eval(environment, &expr)?)
-                    .expect("cannot write to output");
+                let res = self.eval(environment, &expr)?;
+                writeln!(self.output.borrow_mut(), "{}", res).expect("cannot write to output");
                 Ok(None)
             }
             Statement::Expression(expr) => Ok(Some(self.eval(environment, &expr)?)),
             Statement::Block(statements) => {
                 let mut enclosing_environment = environment.enclose();
                 for statement in statements.iter() {
-                    self.execute_statement(statement, &mut enclosing_environment, output)?;
+                    self.execute_statement(statement, &mut enclosing_environment)?;
                 }
                 Ok(None)
             }
             Statement::If(condition, then_branch, None) => {
                 if Interpreter::is_truthy(&self.eval(environment, &condition)?) {
-                    self.execute_statement(then_branch, environment, output)
+                    self.execute_statement(then_branch, environment)
                 } else {
                     Ok(None)
                 }
             }
             Statement::If(condition, then_branch, Some(else_branch)) => {
                 if Interpreter::is_truthy(&self.eval(environment, &condition)?) {
-                    self.execute_statement(then_branch, environment, output)
+                    self.execute_statement(then_branch, environment)
                 } else {
-                    self.execute_statement(else_branch, environment, output)
+                    self.execute_statement(else_branch, environment)
                 }
             }
             Statement::While(condition, body) => {
                 while Interpreter::is_truthy(&self.eval(environment, condition)?) {
-                    let _ = self.execute_statement(body, environment, output);
+                    let _ = self.execute_statement(body, environment);
                 }
                 Ok(None)
             }
@@ -409,8 +412,7 @@ impl Function for LoxFunction {
             env.define(arg.0, arg.1);
         }
 
-        //FIXME Should be able to customize the output
-        interpreter.execute_statement(&self.body, &env, &mut stdout())
+        interpreter.execute_statement(&self.body, &env)
     }
 
     fn arity(&self) -> usize {
