@@ -214,6 +214,10 @@ impl StatementsIterator {
                 }
             }
         }
+        self.consume(
+            TokenType::RightParenthesis,
+            format!("Expect ')' after parameters list"),
+        )?;
 
         match self.block()? {
             Some(body) => Ok(Some(Statement::Function(
