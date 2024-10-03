@@ -114,8 +114,12 @@ impl Interpreter {
         &mut self,
         statement: &Statement,
         environment: &Environment<Type>,
-    ) -> Result<Option<Type>, InterpreterError> {
+    ) -> Result<StatementResult, InterpreterError> {
         match statement {
+            Statement::Return(expr) => Ok(match expr {
+                Some(expr) => StatementResult::Return(self.eval(environment, expr)?),
+                None => StatementResult::Return(Type::Nil),
+            }),
             Statement::Function(name, parameters, body) => {
                 environment.define(
                     name,
@@ -129,36 +133,42 @@ impl Interpreter {
                     ),
                 );
 
-                Ok(None)
+                Ok(StatementResult::Empty)
             }
             Statement::Variable(name, Some(expr)) => {
                 let name = name.to_owned();
                 let value = self.eval(environment, expr)?;
                 environment.define(name, value);
-                Ok(None)
+                Ok(StatementResult::Empty)
             }
             Statement::Variable(name, None) => {
                 environment.define(name, Type::Nil);
-                Ok(None)
+                Ok(StatementResult::Empty)
             }
             Statement::Print(expr) => {
                 let res = self.eval(environment, &expr)?;
                 writeln!(self.output.borrow_mut(), "{}", res).expect("cannot write to output");
-                Ok(None)
+                Ok(StatementResult::Empty)
             }
-            Statement::Expression(expr) => Ok(Some(self.eval(environment, &expr)?)),
+            Statement::Expression(expr) => {
+                self.eval(environment, &expr)?;
+                Ok(StatementResult::Empty)
+            }
             Statement::Block(statements) => {
                 let mut enclosing_environment = environment.enclose();
                 for statement in statements.iter() {
-                    self.execute_statement(statement, &mut enclosing_environment)?;
+                    match self.execute_statement(statement, &mut enclosing_environment)? {
+                        StatementResult::Return(t) => return Ok(StatementResult::Return(t)),
+                        _ => {}
+                    }
                 }
-                Ok(None)
+                Ok(StatementResult::Empty)
             }
             Statement::If(condition, then_branch, None) => {
                 if Interpreter::is_truthy(&self.eval(environment, &condition)?) {
                     self.execute_statement(then_branch, environment)
                 } else {
-                    Ok(None)
+                    Ok(StatementResult::Empty)
                 }
             }
             Statement::If(condition, then_branch, Some(else_branch)) => {
@@ -172,7 +182,7 @@ impl Interpreter {
                 while Interpreter::is_truthy(&self.eval(environment, condition)?) {
                     let _ = self.execute_statement(body, environment);
                 }
-                Ok(None)
+                Ok(StatementResult::Empty)
             }
         }
     }
@@ -319,8 +329,10 @@ impl Interpreter {
                             .into();
                         }
                         match func.call(self, args, right_paren.line)? {
-                            Some(t) => Ok(t),
-                            None => Ok(Type::Nil),
+                            StatementResult::Empty | StatementResult::Return(Type::Nil) => {
+                                Ok(Type::Nil)
+                            }
+                            StatementResult::Return(t) => Ok(t),
                         }
                     }
                     _ => Err(InterpreterError::evaluating(
@@ -339,6 +351,10 @@ impl Interpreter {
             _ => true,
         }
     }
+}
+enum StatementResult {
+    Return(Type),
+    Empty,
 }
 
 #[derive(Debug, Clone)]
@@ -377,7 +393,7 @@ trait Function: Debug + Display {
         interpreter: &mut Interpreter,
         arguments: Vec<Type>,
         line: usize,
-    ) -> Result<Option<Type>, InterpreterError>;
+    ) -> Result<StatementResult, InterpreterError>;
 
     fn arity(&self) -> usize;
 }
@@ -405,7 +421,7 @@ impl Function for LoxFunction {
         interpreter: &mut Interpreter,
         arguments: Vec<Type>,
         _: usize,
-    ) -> Result<Option<Type>, InterpreterError> {
+    ) -> Result<StatementResult, InterpreterError> {
         let env = Environment::enclose(&interpreter.global_environment);
 
         for arg in self.parameters.iter().zip(arguments) {
@@ -436,7 +452,7 @@ mod native_functions {
 
     use crate::errors::{ErrorMessage, InterpreterError};
 
-    use super::{Function, Interpreter, Type};
+    use super::{Function, Interpreter, StatementResult, Type};
 
     #[derive(Debug)]
     pub struct Clock {}
@@ -451,9 +467,11 @@ mod native_functions {
             _: &mut Interpreter,
             _: Vec<super::Type>,
             line: usize,
-        ) -> Result<Option<super::Type>, InterpreterError> {
+        ) -> Result<StatementResult, InterpreterError> {
             match SystemTime::now().duration_since(UNIX_EPOCH) {
-                Ok(duration) => Ok(Some(Type::Number(duration.as_secs() as f64))),
+                Ok(duration) => Ok(StatementResult::Return(Type::Number(
+                    duration.as_secs() as f64
+                ))),
                 Err(error) => Err(InterpreterError::RuntimeError(ErrorMessage::new(
                     format!("System time error: {}", error),
                     Some(line),
@@ -481,11 +499,11 @@ mod native_functions {
             _: &mut Interpreter,
             arguments: Vec<Type>,
             line: usize,
-        ) -> Result<Option<Type>, InterpreterError> {
+        ) -> Result<StatementResult, InterpreterError> {
             match arguments.as_slice() {
                 [Type::String(key)] => match env::var(key.as_str()) {
-                    Ok(value) => Ok(Some(Type::String(Rc::new(value)))),
-                    Err(_) => Ok(Some(Type::Nil)),
+                    Ok(value) => Ok(StatementResult::Return(Type::String(Rc::new(value)))),
+                    Err(_) => Ok(StatementResult::Return(Type::Nil)),
                 },
                 _ => Err(InterpreterError::RuntimeError(ErrorMessage::new(
                     "Invalid argument to 'env' function",

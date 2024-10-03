@@ -44,16 +44,54 @@ printSum(42, 5);"#,
 }
 
 #[test]
-fn function_return() {
+fn function_return_value() {
     let (output, err) = interpreter::run_content(
         r#"fun sum(a, b) {
     return a + b;
 }
 
-print sum(37, 5);"#,
+print sum(37, 4) + 1;"#,
     );
     assert!(err.is_none());
     assert_eq!("42\n", output);
+}
+
+#[test]
+fn function_return() {
+    let (output, err) = interpreter::run_content(
+        r#"fun printIf(a, b) {
+    if (a > b) {
+        return;
+    }
+    print 42;
+}
+
+printIf(9, 2);"#,
+    );
+    assert!(err.is_none());
+    assert_eq!("", output);
+}
+
+#[test]
+fn function_nested_returns() {
+    let (output, err) = interpreter::run_content(
+        r#"fun f(n) {
+  if (n > 0) {
+    if (n > 5) {
+      print "n is > 5";
+      return;
+    }
+    print "n is <= 5 but > 0";
+    return;
+  }
+  print "n is <= 0";
+}
+
+f(9);"#,
+    );
+    println!("{:?}", err);
+    assert!(err.is_none());
+    assert_eq!("n is > 5\n", output);
 }
 
 #[test]

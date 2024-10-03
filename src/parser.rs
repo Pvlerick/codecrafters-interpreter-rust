@@ -13,11 +13,12 @@ funcDecl       → "fun" function ;
 function       → IDENTIFIER "(" parameters? ")" block ;
 parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
-statement      → exprStmt | ifStmt | whileStmt | printStmt | block ;
+statement      → exprStmt | ifStmt | whileStmt | forStmt | returnStmt | printStmt | block ;
 exprStmt       → expression ";" ;
 ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 whileStmt      → "while" "(" expression ")" statement ;
 forStmt        → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
+returnStmt     → "return" expression? ";" ;
 printStmt      → "print" expression ";" ;
 block          → "{" declaration* "}" ;
 expression     → assignment ;
@@ -256,6 +257,7 @@ impl StatementsIterator {
                 TokenType::For => self.for_statement(),
                 TokenType::LeftBrace => self.block(),
                 TokenType::Print => self.print_statement(),
+                TokenType::Return => self.return_statement(),
                 _ => self.expression_statement(),
             },
             None => Ok(None),
@@ -378,6 +380,20 @@ impl StatementsIterator {
             }
             None => Ok(None),
         }
+    }
+
+    fn return_statement(&mut self) -> Result<Option<Statement>, ()> {
+        self.consume(TokenType::Return, "Expect 'return', in return statement")?;
+
+        let expr = if !self.peek_type(TokenType::Semicolon)? {
+            self.expression()?
+        } else {
+            None
+        };
+
+        self.consume_semicolon()?;
+
+        Ok(Some(Statement::Return(expr)))
     }
 
     fn expression_statement(&mut self) -> Result<Option<Statement>, ()> {
@@ -595,6 +611,7 @@ pub enum Statement {
     Function(String, Box<Vec<Token>>, Rc<Statement>),
     Variable(String, Option<Expr>),
     Print(Expr),
+    Return(Option<Expr>),
     Expression(Expr),
     Block(Box<Vec<Statement>>),
     If(Expr, Box<Statement>, Option<Box<Statement>>),
@@ -605,7 +622,19 @@ impl Display for Statement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Statement::*;
         match self {
-            Function(name, _, _) => write!(f, "fun {}(...)", name),
+            Return(None) => write!(f, "return"),
+            Return(Some(expr)) => write!(f, "return {}", expr),
+            Function(name, params, body) => write!(
+                f,
+                "fun {}({}) {}",
+                name,
+                params
+                    .iter()
+                    .map(|i| i.lexeme.as_str())
+                    .collect::<Vec<_>>()
+                    .join(","),
+                body
+            ),
             Variable(name, None) => write!(f, "var {}", name),
             Variable(name, Some(expr)) => write!(f, "var {}={}", name, expr),
             Print(expr) => write!(f, "print {}", expr),
@@ -688,11 +717,16 @@ impl Display for Expr {
             Variable(token) => write!(f, "(var \"{}\")", token.display()),
             Assignment(name, expr) => write!(f, "(assignment {}={})", name, expr),
             Call(callee, _, arguments) => {
-                write!(f, "fun {} (", callee)?;
-                for arg in arguments.iter() {
-                    write!(f, "{}, ", arg)?;
-                }
-                write!(f, ")")
+                write!(
+                    f,
+                    "{}({})",
+                    callee,
+                    arguments
+                        .iter()
+                        .map(|i| format!("{}", i))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
             }
         }
     }
