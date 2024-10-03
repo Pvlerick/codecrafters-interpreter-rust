@@ -89,9 +89,28 @@ fn function_nested_returns() {
 
 f(9);"#,
     );
-    println!("{:?}", err);
     assert!(err.is_none());
     assert_eq!("n is > 5\n", output);
+}
+
+#[test]
+fn function_nested_returns_in_loop() {
+    let (output, err) = interpreter::run_content(
+        r#"fun f(n) {
+  while (n < 100) {
+    if (n == 3) {
+      return n;
+    }
+    print n;
+    n = n + 1;
+  }
+  print "here?";
+}
+
+print f(1);"#,
+    );
+    assert!(err.is_none());
+    assert_eq!("1\n2\n3\n", output);
 }
 
 #[test]

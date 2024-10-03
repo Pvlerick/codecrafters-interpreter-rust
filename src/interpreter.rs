@@ -180,7 +180,10 @@ impl Interpreter {
             }
             Statement::While(condition, body) => {
                 while Interpreter::is_truthy(&self.eval(environment, condition)?) {
-                    let _ = self.execute_statement(body, environment);
+                    match self.execute_statement(body, environment)? {
+                        StatementResult::Return(t) => return Ok(StatementResult::Return(t)),
+                        _ => {}
+                    }
                 }
                 Ok(StatementResult::Empty)
             }

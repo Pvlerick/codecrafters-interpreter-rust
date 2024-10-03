@@ -715,7 +715,7 @@ impl Display for Expr {
             Literal(token) => write!(f, "{}", token.display()),
             Unary(token, expr) => write!(f, "({} {})", token.display(), expr),
             Variable(token) => write!(f, "(var \"{}\")", token.display()),
-            Assignment(name, expr) => write!(f, "(assignment {}={})", name, expr),
+            Assignment(name, expr) => write!(f, "(assignment {}={})", name.display(), expr),
             Call(callee, _, arguments) => {
                 write!(
                     f,
