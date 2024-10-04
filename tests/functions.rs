@@ -114,6 +114,26 @@ print f(1);"#,
 }
 
 #[test]
+fn function_closure() {
+    let (output, err) = interpreter::run_content(
+        r#"fun makeCounter() {
+  var i = 0;
+  fun count() {
+    i = i + 1;
+    print i;
+  }
+  return count;
+}
+
+var counter = makeCounter();
+counter();
+counter();"#,
+    );
+    assert!(err.is_none());
+    assert_eq!("1\n2\n", output);
+}
+
+#[test]
 fn function_err_not_a_function() {
     let (_, err) = interpreter::run_content(r#""not a function();"#);
     assert!(err.is_some());

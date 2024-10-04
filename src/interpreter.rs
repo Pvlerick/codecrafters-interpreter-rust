@@ -129,6 +129,7 @@ impl Interpreter {
                             name,
                             parameters.iter().map(|i| i.lexeme.to_string()).collect(),
                             body.clone(),
+                            environment.clone(),
                         )),
                     ),
                 );
@@ -406,14 +407,21 @@ struct LoxFunction {
     name: String,
     parameters: Vec<String>,
     body: Rc<Statement>,
+    closure: Environment<Type>,
 }
 
 impl LoxFunction {
-    fn new<T: ToString>(name: T, parameters: Vec<String>, body: Rc<Statement>) -> Self {
+    fn new<T: ToString>(
+        name: T,
+        parameters: Vec<String>,
+        body: Rc<Statement>,
+        closure: Environment<Type>,
+    ) -> Self {
         Self {
             name: name.to_string(),
             parameters,
             body,
+            closure,
         }
     }
 }
@@ -425,7 +433,7 @@ impl Function for LoxFunction {
         arguments: Vec<Type>,
         _: usize,
     ) -> Result<StatementResult, InterpreterError> {
-        let env = Environment::enclose(&interpreter.global_environment);
+        let env = Environment::enclose(&self.closure);
 
         for arg in self.parameters.iter().zip(arguments) {
             env.define(arg.0, arg.1);
