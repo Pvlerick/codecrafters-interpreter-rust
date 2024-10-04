@@ -120,15 +120,18 @@ impl Interpreter {
                 Some(expr) => StatementResult::Return(self.eval(environment, expr)?),
                 None => StatementResult::Return(Type::Nil),
             }),
-            Statement::Function(name, parameters, body) => {
+            Statement::Function(name, fun) => {
                 environment.define(
                     name,
                     Type::Function(
                         name.to_owned(),
                         Rc::new(LoxFunction::new(
                             name,
-                            parameters.iter().map(|i| i.lexeme.to_string()).collect(),
-                            body.clone(),
+                            fun.parameters
+                                .iter()
+                                .map(|i| i.lexeme.to_string())
+                                .collect(),
+                            fun.body.clone(),
                             environment.clone(),
                         )),
                     ),
@@ -344,6 +347,21 @@ impl Interpreter {
                         right_paren.line,
                     )),
                 }
+            }
+            Expr::AnonymousFunction(fun) => {
+                let name = "_<fun_anon>";
+                Ok(Type::Function(
+                    name.to_owned(),
+                    Rc::new(LoxFunction::new(
+                        name,
+                        fun.parameters
+                            .iter()
+                            .map(|i| i.lexeme.to_string())
+                            .collect(),
+                        fun.body.clone(),
+                        environment.clone(),
+                    )),
+                ))
             }
         }
     }

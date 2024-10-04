@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt::Display, io::BufRead, rc::Rc};
+use std::{cell::RefCell, collections::VecDeque, fmt::Display, io::BufRead, rc::Rc};
 
 use crate::{
     errors::{InterpreterError, ParsingErrorsBuilder},
@@ -22,9 +22,10 @@ returnStmt     → "return" expression? ";" ;
 printStmt      → "print" expression ";" ;
 block          → "{" declaration* "}" ;
 expression     → assignment ;
-assignment     → IDENTIFIER "=" assignment | logic_or ;
+anonFunc       → "fun" "(" parameter? ") block ;"
+assignment     → IDENTIFIER "=" assignment | anonFunc | logic_or ;
 logic_or       → logic_and ( "or" logic_and )* ;
-logic_or       → equality ( "and" equality )* ;
+logic_and      → equality ( "and" equality )* ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
@@ -115,7 +116,7 @@ impl Parser {
 
 pub struct StatementsIterator {
     tokens: TokensIterator,
-    peeked: Option<Token>,
+    peeked: VecDeque<Token>,
     errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>,
 }
 
@@ -137,7 +138,7 @@ impl StatementsIterator {
     pub fn new(tokens: TokensIterator, errors: Rc<RefCell<Option<ParsingErrorsBuilder>>>) -> Self {
         Self {
             tokens,
-            peeked: None,
+            peeked: VecDeque::new(),
             errors,
         }
     }
@@ -182,21 +183,27 @@ impl StatementsIterator {
     }
 
     fn declaration(&mut self) -> Result<Option<Statement>, ()> {
-        match self.peek()? {
-            Some(token) => match token.token_type {
-                TokenType::EOF => Ok(None),
-                TokenType::Fun => self.function(FunctionKind::Function),
-                TokenType::Var => self.variable_declaration(),
-                _ => Ok(self.statement()?.map(|i| i.into())),
-            },
-            None => Ok(None),
+        if self.peek_type(TokenType::EOF)? {
+            return Ok(None);
+        }
+
+        match self
+            .peek_count(2)?
+            .map(|i| i.iter().map(|t| t.token_type).collect::<Vec<_>>())
+            .as_deref()
+        {
+            Some([TokenType::Fun, TokenType::Identifier]) => self.function(FunctionKind::Function),
+            Some([TokenType::Var, _]) => self.variable_declaration(),
+            _ => Ok(self.statement()?.map(|i| i.into())),
         }
     }
 
     fn function(&mut self, kind: FunctionKind) -> Result<Option<Statement>, ()> {
         self.consume(TokenType::Fun, "Expect 'fun' in a function delcaration")?;
 
-        let name = self.consume(TokenType::Identifier, format!("Expect {} name", kind))?;
+        let name = self
+            .consume(TokenType::Identifier, format!("Expect {} name", kind))?
+            .lexeme;
 
         self.consume(
             TokenType::LeftParenthesis,
@@ -222,9 +229,8 @@ impl StatementsIterator {
 
         match self.block()? {
             Some(body) => Ok(Some(Statement::Function(
-                name.lexeme,
-                Box::new(parameters),
-                Rc::new(body),
+                name,
+                Box::new(Function::new(parameters, body)),
             ))),
             None => Ok(None),
         }
@@ -232,14 +238,12 @@ impl StatementsIterator {
 
     fn variable_declaration(&mut self) -> Result<Option<Statement>, ()> {
         self.consume(TokenType::Var, "Expect 'var' in variable declaration")?;
+
         match self.next_token()? {
             Some(token) if token.token_type == TokenType::Identifier => {
                 let name = token.lexeme;
-                let initializer = match self.peek()? {
-                    Some(token) if token.token_type == TokenType::Equal => {
-                        self.consume(TokenType::Equal, "Expect '=' after variable identifier")?;
-                        self.expression()?
-                    }
+                let initializer = match self.next_matches(TokenType::Equal)? {
+                    Some(_) => self.expression()?,
                     _ => None,
                 };
                 self.consume_semicolon()?;
@@ -378,7 +382,7 @@ impl StatementsIterator {
                 self.consume_semicolon()?;
                 Ok(Some(Statement::Print(expr)))
             }
-            None => Ok(None),
+            _ => Ok(None),
         }
     }
 
@@ -402,7 +406,7 @@ impl StatementsIterator {
                 self.consume_semicolon()?;
                 Ok(Some(Statement::Expression(expr)))
             }
-            None => Ok(None),
+            _ => Ok(None),
         }
     }
 
@@ -411,7 +415,11 @@ impl StatementsIterator {
     }
 
     fn assignment(&mut self) -> Result<Option<Expr>, ()> {
-        let expr = self.logic_or()?;
+        let expr = if self.peek_type(TokenType::Fun)? {
+            self.anonymous_function()?
+        } else {
+            self.logic_or()?
+        };
 
         if self.next_matches(TokenType::Equal)?.is_some() {
             return match (self.assignment()?, expr) {
@@ -426,6 +434,42 @@ impl StatementsIterator {
         }
 
         Ok(expr)
+    }
+
+    fn anonymous_function(&mut self) -> Result<Option<Expr>, ()> {
+        self.consume(
+            TokenType::Fun,
+            "Expect 'fun' in anonymous function expression",
+        )?;
+
+        self.consume(
+            TokenType::LeftParenthesis,
+            format!("Expect '(' after anonymous function expression"),
+        )?;
+
+        let mut parameters = Vec::new();
+        if !(self.peek_type(TokenType::RightParenthesis)?) {
+            loop {
+                if parameters.len() >= 255 {
+                    return self.add_error("Can't have more than 255 parameters.");
+                }
+                parameters.push(self.consume(TokenType::Identifier, "Expect parameter name")?);
+                if self.next_matches(TokenType::Comma)?.is_none() {
+                    break;
+                }
+            }
+        }
+        self.consume(
+            TokenType::RightParenthesis,
+            format!("Expect ')' after parameters list"),
+        )?;
+
+        match self.block()? {
+            Some(body) => Ok(Some(Expr::AnonymousFunction(Function::new(
+                parameters, body,
+            )))),
+            None => Ok(None),
+        }
     }
 
     grammar_rule_binary!(logic_or, logic_and, TokenType::Or, logical);
@@ -531,46 +575,45 @@ impl StatementsIterator {
     }
 
     fn next_token(&mut self) -> Result<Option<Token>, ()> {
-        match self.peeked {
-            Some(_) => Ok(self.peeked.take()),
-            None => match self.tokens.next() {
+        if !self.peeked.is_empty() {
+            Ok(self.peeked.pop_front())
+        } else {
+            match self.tokens.next() {
                 Some(Ok(token)) => Ok(Some(token)),
                 None => Ok(None),
                 Some(Err(error)) => self.add_error(error),
-            },
+            }
         }
+    }
+
+    fn peek_count(&mut self, count: usize) -> Result<Option<&[Token]>, ()> {
+        while self.peeked.len() < count {
+            match self.tokens.next() {
+                Some(Ok(token)) => self.peeked.push_back(token),
+                Some(Err(error)) => return self.add_error(error),
+                None => return Ok(None),
+            }
+        }
+
+        self.peeked.make_contiguous();
+        Ok(Some(&self.peeked.as_slices().0[0..count]))
     }
 
     fn peek(&mut self) -> Result<Option<&Token>, ()> {
-        match self.peeked {
-            Some(_) => Ok(self.peeked.as_ref()),
-            None => match self.tokens.next() {
-                Some(Ok(token)) => {
-                    self.peeked = Some(token);
-                    Ok(self.peeked.as_ref())
-                }
-                None => Ok(None),
-                Some(Err(error)) => self.add_error(error),
-            },
-        }
+        Ok(self.peek_count(1)?.map(|i| &i[0]))
     }
 
     fn peek_type(&mut self, token_type: TokenType) -> Result<bool, ()> {
-        Ok(self.peek()?.map_or(false, |i| i.token_type == token_type))
+        Ok(self
+            .peek()?
+            .map(|i| i.token_type == token_type)
+            .unwrap_or_default())
     }
 
     fn next_matches<M: TokenTypeMatcher>(&mut self, matcher: M) -> Result<Option<Token>, ()> {
-        match &self.peeked {
-            Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.take()),
-            Some(_) => Ok(None),
-            None => match self.tokens.next() {
-                Some(Ok(token)) => {
-                    self.peeked = Some(token);
-                    self.next_matches(matcher)
-                }
-                None => Ok(None),
-                Some(Err(error)) => self.add_error(error),
-            },
+        match self.peek()? {
+            Some(token) if matcher.matches(&token.token_type) => Ok(self.peeked.pop_front()),
+            _ => Ok(None),
         }
     }
 
@@ -607,8 +650,38 @@ impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
 }
 
 #[derive(Debug)]
+pub struct Function {
+    pub parameters: Box<Vec<Token>>,
+    pub body: Rc<Statement>,
+}
+
+impl Function {
+    fn new(parameters: Vec<Token>, body: Statement) -> Self {
+        Self {
+            parameters: Box::new(parameters),
+            body: Rc::new(body),
+        }
+    }
+}
+
+impl Display for Function {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "({}) {}",
+            self.parameters
+                .iter()
+                .map(|i| i.lexeme.as_str())
+                .collect::<Vec<_>>()
+                .join(","),
+            self.body
+        )
+    }
+}
+
+#[derive(Debug)]
 pub enum Statement {
-    Function(String, Box<Vec<Token>>, Rc<Statement>),
+    Function(String, Box<Function>),
     Variable(String, Option<Expr>),
     Print(Expr),
     Return(Option<Expr>),
@@ -624,17 +697,7 @@ impl Display for Statement {
         match self {
             Return(None) => write!(f, "return"),
             Return(Some(expr)) => write!(f, "return {}", expr),
-            Function(name, params, body) => write!(
-                f,
-                "fun {}({}) {}",
-                name,
-                params
-                    .iter()
-                    .map(|i| i.lexeme.as_str())
-                    .collect::<Vec<_>>()
-                    .join(","),
-                body
-            ),
+            Function(name, fun) => write!(f, "fun {}{}", name, fun),
             Variable(name, None) => write!(f, "var {}", name),
             Variable(name, Some(expr)) => write!(f, "var {}={}", name, expr),
             Print(expr) => write!(f, "print {}", expr),
@@ -668,7 +731,14 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     Variable(Token),
     Assignment(Token, Box<Expr>),
+    AnonymousFunction(Function),
     Call(Box<Expr>, Token, Box<Vec<Expr>>),
+}
+
+impl Into<Statement> for Expr {
+    fn into(self) -> Statement {
+        Statement::Expression(self)
+    }
 }
 
 impl Expr {
@@ -728,6 +798,7 @@ impl Display for Expr {
                         .join(",")
                 )
             }
+            AnonymousFunction(fun) => write!(f, "fun({})", fun),
         }
     }
 }

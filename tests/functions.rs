@@ -134,6 +134,28 @@ counter();"#,
 }
 
 #[test]
+fn function_anonymous() {
+    let (output, err) = interpreter::run_content(
+        r#"fun c(a, b) {
+  a(b);
+}
+
+c(fun(a) {
+  print a;
+}, "foo");"#,
+    );
+    assert!(err.is_none());
+    assert_eq!("foo\n", output);
+}
+
+#[test]
+fn function_expression() {
+    let (output, err) = interpreter::run_content("fun () {};");
+    assert!(err.is_none());
+    assert_eq!("", output);
+}
+
+#[test]
 fn function_err_not_a_function() {
     let (_, err) = interpreter::run_content(r#""not a function();"#);
     assert!(err.is_some());
