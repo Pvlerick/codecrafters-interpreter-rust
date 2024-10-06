@@ -51,15 +51,9 @@ impl Interpreter {
     fn new_global_environment() -> Environment<Type> {
         let env = Environment::<Type>::new();
 
-        env.define(
-            "clock",
-            Type::Function("clock".to_owned(), Rc::new(native_functions::Clock {})),
-        );
+        env.define("clock", Type::Function(Rc::new(native_functions::Clock {})));
 
-        env.define(
-            "env",
-            Type::Function("env".to_owned(), Rc::new(native_functions::Env {})),
-        );
+        env.define("env", Type::Function(Rc::new(native_functions::Env {})));
 
         env
     }
@@ -120,25 +114,6 @@ impl Interpreter {
                 Some(expr) => StatementResult::Return(self.eval(environment, expr)?),
                 None => StatementResult::Return(Type::Nil),
             }),
-            Statement::Function(name, fun) => {
-                environment.define(
-                    name,
-                    Type::Function(
-                        name.to_owned(),
-                        Rc::new(LoxFunction::new(
-                            name,
-                            fun.parameters
-                                .iter()
-                                .map(|i| i.lexeme.to_string())
-                                .collect(),
-                            fun.body.clone(),
-                            environment.clone(),
-                        )),
-                    ),
-                );
-
-                Ok(StatementResult::Empty)
-            }
             Statement::Variable(name, Some(expr)) => {
                 let name = name.to_owned();
                 let value = self.eval(environment, expr)?;
@@ -322,13 +297,13 @@ impl Interpreter {
                 }
 
                 match callee {
-                    Type::Function(name, func) => {
+                    Type::Function(func) => {
                         if args.len() != func.arity() {
                             return InterpreterError::evaluating(
                                 format!(
                                     "Expected {} arguments for function '{}' but got {}",
                                     func.arity(),
-                                    name,
+                                    func,
                                     args.len()
                                 ),
                                 right_paren.line,
@@ -348,21 +323,15 @@ impl Interpreter {
                     )),
                 }
             }
-            Expr::AnonymousFunction(fun) => {
-                let name = "_<fun_anon>";
-                Ok(Type::Function(
-                    name.to_owned(),
-                    Rc::new(LoxFunction::new(
-                        name,
-                        fun.parameters
-                            .iter()
-                            .map(|i| i.lexeme.to_string())
-                            .collect(),
-                        fun.body.clone(),
-                        environment.clone(),
-                    )),
-                ))
-            }
+            Expr::Function(name, fun) => Ok(Type::Function(Rc::new(LoxFunction::new(
+                name.as_ref(),
+                fun.parameters
+                    .iter()
+                    .map(|i| i.lexeme.to_string())
+                    .collect(),
+                fun.body.clone(),
+                environment.clone(),
+            )))),
         }
     }
 
@@ -385,7 +354,7 @@ enum Type {
     Boolean(bool),
     Number(f64),
     String(Rc<String>),
-    Function(String, Rc<dyn Function>),
+    Function(Rc<dyn Function>),
 }
 
 impl Display for Type {
@@ -395,7 +364,7 @@ impl Display for Type {
             Type::Number(n) => write!(f, "{}", n),
             Type::String(s) => write!(f, "{}", s),
             Type::Boolean(b) => write!(f, "{}", b),
-            Type::Function(n, _) => write!(f, "{}()", n),
+            Type::Function(fun) => write!(f, "{}()", fun),
         }
     }
 }
@@ -430,13 +399,15 @@ struct LoxFunction {
 
 impl LoxFunction {
     fn new<T: ToString>(
-        name: T,
+        name: Option<T>,
         parameters: Vec<String>,
         body: Rc<Statement>,
         closure: Environment<Type>,
     ) -> Self {
         Self {
-            name: name.to_string(),
+            name: name
+                .map(|i| i.to_string())
+                .unwrap_or_else(|| "__<fun_anon>".to_owned()),
             parameters,
             body,
             closure,
@@ -467,7 +438,7 @@ impl Function for LoxFunction {
 
 impl Display for LoxFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}()", self.name)
+        write!(f, "{}", self.name)
     }
 }
 
@@ -511,7 +482,7 @@ mod native_functions {
 
     impl Display for Clock {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "clock()")
+            write!(f, "clock")
         }
     }
 
@@ -544,7 +515,7 @@ mod native_functions {
 
     impl Display for Env {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "env(key)")
+            write!(f, "env")
         }
     }
 }

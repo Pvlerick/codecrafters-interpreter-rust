@@ -192,18 +192,33 @@ impl StatementsIterator {
             .map(|i| i.iter().map(|t| t.token_type).collect::<Vec<_>>())
             .as_deref()
         {
-            Some([TokenType::Fun, TokenType::Identifier]) => self.function(FunctionKind::Function),
+            Some([TokenType::Fun, TokenType::Identifier]) => {
+                let expr = self.function(FunctionKind::Normal)?;
+                match &expr {
+                    Some(Expr::Function(Some(name), _)) => {
+                        Ok(Some(Statement::Variable(name.to_owned(), expr)))
+                    }
+                    _ => self.add_error("invalid function declaration"),
+                }
+            }
             Some([TokenType::Var, _]) => self.variable_declaration(),
             _ => Ok(self.statement()?.map(|i| i.into())),
         }
     }
 
-    fn function(&mut self, kind: FunctionKind) -> Result<Option<Statement>, ()> {
-        self.consume(TokenType::Fun, "Expect 'fun' in a function delcaration")?;
+    fn function(&mut self, kind: FunctionKind) -> Result<Option<Expr>, ()> {
+        self.consume(
+            TokenType::Fun,
+            format!("Expect 'fun' in {} declaration", kind),
+        )?;
 
-        let name = self
-            .consume(TokenType::Identifier, format!("Expect {} name", kind))?
-            .lexeme;
+        let name = match kind {
+            FunctionKind::Normal => Some(
+                self.consume(TokenType::Identifier, format!("Expect {} name", kind))?
+                    .lexeme,
+            ),
+            FunctionKind::Anonymous => None,
+        };
 
         self.consume(
             TokenType::LeftParenthesis,
@@ -228,10 +243,7 @@ impl StatementsIterator {
         )?;
 
         match self.block()? {
-            Some(body) => Ok(Some(Statement::Function(
-                name,
-                Box::new(Function::new(parameters, body)),
-            ))),
+            Some(body) => Ok(Some(Expr::Function(name, Function::new(parameters, body)))),
             None => Ok(None),
         }
     }
@@ -416,7 +428,7 @@ impl StatementsIterator {
 
     fn assignment(&mut self) -> Result<Option<Expr>, ()> {
         let expr = if self.peek_type(TokenType::Fun)? {
-            self.anonymous_function()?
+            self.function(FunctionKind::Anonymous)?
         } else {
             self.logic_or()?
         };
@@ -434,42 +446,6 @@ impl StatementsIterator {
         }
 
         Ok(expr)
-    }
-
-    fn anonymous_function(&mut self) -> Result<Option<Expr>, ()> {
-        self.consume(
-            TokenType::Fun,
-            "Expect 'fun' in anonymous function expression",
-        )?;
-
-        self.consume(
-            TokenType::LeftParenthesis,
-            format!("Expect '(' after anonymous function expression"),
-        )?;
-
-        let mut parameters = Vec::new();
-        if !(self.peek_type(TokenType::RightParenthesis)?) {
-            loop {
-                if parameters.len() >= 255 {
-                    return self.add_error("Can't have more than 255 parameters.");
-                }
-                parameters.push(self.consume(TokenType::Identifier, "Expect parameter name")?);
-                if self.next_matches(TokenType::Comma)?.is_none() {
-                    break;
-                }
-            }
-        }
-        self.consume(
-            TokenType::RightParenthesis,
-            format!("Expect ')' after parameters list"),
-        )?;
-
-        match self.block()? {
-            Some(body) => Ok(Some(Expr::AnonymousFunction(Function::new(
-                parameters, body,
-            )))),
-            None => Ok(None),
-        }
     }
 
     grammar_rule_binary!(logic_or, logic_and, TokenType::Or, logical);
@@ -681,7 +657,6 @@ impl Display for Function {
 
 #[derive(Debug)]
 pub enum Statement {
-    Function(String, Box<Function>),
     Variable(String, Option<Expr>),
     Print(Expr),
     Return(Option<Expr>),
@@ -697,7 +672,6 @@ impl Display for Statement {
         match self {
             Return(None) => write!(f, "return"),
             Return(Some(expr)) => write!(f, "return {}", expr),
-            Function(name, fun) => write!(f, "fun {}{}", name, fun),
             Variable(name, None) => write!(f, "var {}", name),
             Variable(name, Some(expr)) => write!(f, "var {}={}", name, expr),
             Print(expr) => write!(f, "print {}", expr),
@@ -731,7 +705,7 @@ pub enum Expr {
     Unary(Token, Box<Expr>),
     Variable(Token),
     Assignment(Token, Box<Expr>),
-    AnonymousFunction(Function),
+    Function(Option<String>, Function),
     Call(Box<Expr>, Token, Box<Vec<Expr>>),
 }
 
@@ -798,19 +772,29 @@ impl Display for Expr {
                         .join(",")
                 )
             }
-            AnonymousFunction(fun) => write!(f, "fun({})", fun),
+            Function(name, fun) => {
+                write!(
+                    f,
+                    "fun {}({})",
+                    name.as_ref().unwrap_or(&"".to_owned()),
+                    fun
+                )
+            }
         }
     }
 }
 
+#[derive(Debug)]
 enum FunctionKind {
-    Function,
+    Normal,
+    Anonymous,
 }
 
 impl Display for FunctionKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FunctionKind::Function => write!(f, "function"),
+            FunctionKind::Normal => write!(f, "function"),
+            FunctionKind::Anonymous => write!(f, "anonymous function"),
         }
     }
 }
