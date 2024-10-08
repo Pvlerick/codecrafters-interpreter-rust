@@ -343,6 +343,7 @@ impl Interpreter {
         }
     }
 }
+
 enum StatementResult {
     Return(Type),
     Empty,

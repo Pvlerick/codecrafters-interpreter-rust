@@ -62,14 +62,14 @@ fn scan_keywords() {
 
 #[test]
 fn parse_boolean() {
-    let res = parser::parse_content("true");
+    let res = parser::parse_content_to_expression("true");
     assert!(res.is_ok());
     assert_eq!("true", format!("{}", res.unwrap().unwrap()));
 }
 
 #[test]
 fn parse_number() {
-    let res = parser::parse_content("123.456");
+    let res = parser::parse_content_to_expression("123.456");
     assert!(res.is_ok());
     assert_eq!("123.456", format!("{}", res.unwrap().unwrap()));
 }
