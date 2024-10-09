@@ -195,9 +195,10 @@ impl StatementsIterator {
             Some([TokenType::Fun, TokenType::Identifier]) => {
                 let expr = self.function(FunctionKind::Normal)?;
                 match &expr {
-                    Some(Expr::Function(Some(name), _)) => {
-                        Ok(Some(Statement::Variable(name.to_owned(), expr)))
-                    }
+                    Some(Expr::Function(Some(name), _)) => Ok(Some(Statement::Variable(
+                        name.to_owned(),
+                        expr.map(|i| Rc::new(i)),
+                    ))),
                     _ => self.add_error("invalid function declaration"),
                 }
             }
@@ -259,7 +260,10 @@ impl StatementsIterator {
                     _ => None,
                 };
                 self.consume_semicolon()?;
-                Ok(Some(Statement::Variable(name, initializer)))
+                Ok(Some(Statement::Variable(
+                    name,
+                    initializer.map(|i| Rc::new(i)),
+                )))
             }
             _ => self.add_error("Expect variable name"),
         }
@@ -294,7 +298,7 @@ impl StatementsIterator {
 
         match (condition, then_branch) {
             (Some(condition), Some(then_branch)) => Ok(Some(Statement::If(
-                condition,
+                Rc::new(condition),
                 Box::new(then_branch),
                 else_branch.map(|i| Box::new(i)),
             ))),
@@ -311,7 +315,9 @@ impl StatementsIterator {
         self.consume(TokenType::RightParenthesis, "Expect ')' after condition")?;
 
         match (condition, self.statement()?) {
-            (Some(condition), Some(body)) => Ok(Some(Statement::While(condition, Box::new(body)))),
+            (Some(condition), Some(body)) => {
+                Ok(Some(Statement::While(Rc::new(condition), Box::new(body))))
+            }
             _ => Ok(None),
         }
     }
@@ -351,11 +357,14 @@ impl StatementsIterator {
         };
 
         if let Some(increment) = increment {
-            body = Statement::Block(Box::new(vec![body, Statement::Expression(increment)]))
+            body = Statement::Block(Box::new(vec![
+                body,
+                Statement::Expression(Rc::new(increment)),
+            ]))
         }
 
         body = Statement::While(
-            if let Some(condition) = condition {
+            Rc::new(if let Some(condition) = condition {
                 condition
             } else {
                 Expr::Literal(Token::new(
@@ -363,7 +372,7 @@ impl StatementsIterator {
                     "true",
                     self.tokens.current_line(),
                 ))
-            },
+            }),
             Box::new(body),
         );
 
@@ -392,7 +401,7 @@ impl StatementsIterator {
         match self.expression()? {
             Some(expr) => {
                 self.consume_semicolon()?;
-                Ok(Some(Statement::Print(expr)))
+                Ok(Some(Statement::Print(Rc::new(expr))))
             }
             _ => Ok(None),
         }
@@ -416,7 +425,7 @@ impl StatementsIterator {
         match self.expression()? {
             Some(expr) => {
                 self.consume_semicolon()?;
-                Ok(Some(Statement::Expression(expr)))
+                Ok(Some(Statement::Expression(Rc::new(expr))))
             }
             _ => Ok(None),
         }
@@ -507,7 +516,7 @@ impl StatementsIterator {
                     return self.add_error("Can't have more than 255 arguments.");
                 }
                 if let Some(expr) = self.expression()? {
-                    arguments.push(expr);
+                    arguments.push(Rc::new(expr));
                 }
                 if self.next_matches(TokenType::Comma)?.is_none() {
                     break;
@@ -657,13 +666,13 @@ impl Display for Function {
 
 #[derive(Debug)]
 pub enum Statement {
-    Variable(String, Option<Expr>),
-    Print(Expr),
+    Variable(String, Option<Rc<Expr>>),
+    Print(Rc<Expr>),
     Return(Option<Expr>),
-    Expression(Expr),
+    Expression(Rc<Expr>),
     Block(Box<Vec<Statement>>),
-    If(Expr, Box<Statement>, Option<Box<Statement>>),
-    While(Expr, Box<Statement>),
+    If(Rc<Expr>, Box<Statement>, Option<Box<Statement>>),
+    While(Rc<Expr>, Box<Statement>),
 }
 
 impl Display for Statement {
@@ -698,41 +707,41 @@ impl Display for Statement {
 
 #[derive(Debug)]
 pub enum Expr {
-    Binary(Token, Box<Expr>, Box<Expr>),
-    Grouping(Box<Expr>),
+    Binary(Token, Rc<Expr>, Rc<Expr>),
+    Grouping(Rc<Expr>),
     Literal(Token),
-    Logical(Token, Box<Expr>, Box<Expr>),
-    Unary(Token, Box<Expr>),
+    Logical(Token, Rc<Expr>, Rc<Expr>),
+    Unary(Token, Rc<Expr>),
     Variable(Token),
-    Assignment(Token, Box<Expr>),
+    Assignment(Token, Rc<Expr>),
     Function(Option<String>, Function),
-    Call(Box<Expr>, Token, Box<Vec<Expr>>),
+    Call(Rc<Expr>, Token, Box<Vec<Rc<Expr>>>),
 }
 
 impl Into<Statement> for Expr {
     fn into(self) -> Statement {
-        Statement::Expression(self)
+        Statement::Expression(Rc::new(self))
     }
 }
 
 impl Expr {
     fn binary(token: Token, left: Expr, right: Expr) -> Self {
-        Self::Binary(token, Box::new(left), Box::new(right))
+        Self::Binary(token, Rc::new(left), Rc::new(right))
     }
 
     fn grouping(expr: Expr) -> Self {
-        Self::Grouping(Box::new(expr))
+        Self::Grouping(Rc::new(expr))
     }
 
     fn literal(token: Token) -> Self {
         Self::Literal(token)
     }
     fn logical(token: Token, left: Expr, right: Expr) -> Self {
-        Self::Logical(token, Box::new(left), Box::new(right))
+        Self::Logical(token, Rc::new(left), Rc::new(right))
     }
 
     fn unary(token: Token, expr: Expr) -> Self {
-        Self::Unary(token, Box::new(expr))
+        Self::Unary(token, Rc::new(expr))
     }
 
     fn variable(token: Token) -> Self {
@@ -740,11 +749,11 @@ impl Expr {
     }
 
     fn assignment(token: Token, expr: Expr) -> Self {
-        Self::Assignment(token, Box::new(expr))
+        Self::Assignment(token, Rc::new(expr))
     }
 
-    fn call(callee: Expr, right_paren: Token, arguments: Vec<Expr>) -> Self {
-        Self::Call(Box::new(callee), right_paren, Box::new(arguments))
+    fn call(callee: Expr, right_paren: Token, arguments: Vec<Rc<Expr>>) -> Self {
+        Self::Call(Rc::new(callee), right_paren, Box::new(arguments))
     }
 }
 
