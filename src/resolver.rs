@@ -3,12 +3,18 @@ use std::collections::HashMap;
 use crate::parser::{Expr, Function, Statement};
 
 pub struct Resolver {
-    scopes: Vec<HashMap<String, bool>>,
+    scopes: Vec<HashMap<String, Variable>>,
+    pub resolve_table: Vec<usize>,
+    next_index: usize,
 }
 
 impl Resolver {
     pub fn new() -> Self {
-        Self { scopes: Vec::new() }
+        Self {
+            scopes: Vec::new(),
+            resolve_table: Vec::new(),
+            next_index: 0,
+        }
     }
 
     pub fn resolve(&mut self, statements: &Vec<Statement>) {
@@ -54,11 +60,10 @@ impl Resolver {
     fn resolve_expression(&mut self, expr: &Expr) {
         match expr {
             Expr::Variable(ref token) => {
-                if self
-                    .scopes
-                    .last()
-                    .map_or(false, |i| *i.get(&token.lexeme).unwrap_or(&false))
-                {
+                if self.scopes.last().map_or(false, |i| {
+                    i.get(&token.lexeme).map(|i| i.is_defined).unwrap_or(false)
+                }) {
+                    // Report error: variable used in its own initializer
                     todo!()
                 }
 
@@ -105,15 +110,11 @@ impl Resolver {
         self.end_scope();
     }
 
-    fn resolve_local<T: ToString>(&self, _expr: &Expr, name: &T) {
-        let mut _count = 0;
-        for scope in self.scopes.iter().rev() {
-            if scope.contains_key(&name.to_string()) {
-                todo!();
-                // self.interpreter.resolve(expr, count);
-                // return;
+    fn resolve_local<T: ToString>(&mut self, _expr: &Expr, name: &T) {
+        for scope in self.scopes.iter().enumerate().rev() {
+            if let Some(variable) = scope.1.get(&name.to_string()) {
+                self.resolve_table[variable.index] = scope.0;
             }
-            _count += 1;
         }
     }
 
@@ -125,15 +126,40 @@ impl Resolver {
         self.scopes.pop();
     }
 
+    fn inc_index(&mut self) -> usize {
+        self.next_index += 1;
+        self.next_index
+    }
+
     fn declare<T: ToString>(&mut self, name: &T) {
+        let index = self.inc_index();
         self.scopes
             .last_mut()
-            .and_then(|i| i.insert(name.to_string(), false));
+            .and_then(|i| i.insert(name.to_string(), Variable::new(index)));
     }
 
     fn define<T: ToString>(&mut self, name: &T) {
-        self.scopes
-            .last_mut()
-            .and_then(|i| i.insert(name.to_string(), true));
+        self.scopes.last_mut().and_then(|i| {
+            i.entry(name.to_string()).and_modify(|i| i.define());
+            None::<T>
+        });
+    }
+}
+
+struct Variable {
+    is_defined: bool,
+    index: usize,
+}
+
+impl Variable {
+    fn new(index: usize) -> Self {
+        Self {
+            is_defined: false,
+            index,
+        }
+    }
+
+    fn define(&mut self) {
+        self.is_defined = true;
     }
 }

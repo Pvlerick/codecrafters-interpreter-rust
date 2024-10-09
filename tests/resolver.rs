@@ -10,3 +10,11 @@ fn resolver_empty() {
     let mut sut = Resolver::new();
     sut.resolve(&res.unwrap());
 }
+
+#[test]
+fn resolver_one_variable() {
+    let res = parser::parse_content("var foo = 42");
+    assert!(res.is_ok());
+    let mut sut = Resolver::new();
+    sut.resolve(&res.unwrap());
+}
