@@ -328,7 +328,7 @@ impl PartialEq<Token> for TokenType {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TokenType {
     EOF,
     LeftParenthesis,

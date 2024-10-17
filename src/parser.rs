@@ -418,7 +418,7 @@ impl StatementsIterator {
 
         self.consume_semicolon()?;
 
-        Ok(Some(Statement::Return(expr)))
+        Ok(Some(Statement::Return(expr.map(|i| Rc::new(i)))))
     }
 
     fn expression_statement(&mut self) -> Result<Option<Statement>, ()> {
@@ -634,7 +634,7 @@ impl<const N: usize> TokenTypeMatcher for [TokenType; N] {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Function {
     pub parameters: Box<Vec<Token>>,
     pub body: Rc<Statement>,
@@ -664,11 +664,11 @@ impl Display for Function {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Variable(String, Option<Rc<Expr>>),
     Print(Rc<Expr>),
-    Return(Option<Expr>),
+    Return(Option<Rc<Expr>>),
     Expression(Rc<Expr>),
     Block(Box<Vec<Statement>>),
     If(Rc<Expr>, Box<Statement>, Option<Box<Statement>>),
@@ -705,7 +705,7 @@ impl Display for Statement {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expr {
     Binary(Token, Rc<Expr>, Rc<Expr>),
     Grouping(Rc<Expr>),

@@ -35,6 +35,10 @@ where
     pub fn get<K: ToString>(&self, key: K) -> Option<T> {
         self.inner.borrow().get(key)
     }
+
+    pub fn get_at<K: ToString>(&self, key: K, distance: usize) -> Option<T> {
+        self.inner.borrow().get_at(key, distance)
+    }
 }
 
 impl<T> Clone for Environment<T>
@@ -102,6 +106,17 @@ where
             },
         }
     }
+
+    pub fn get_at<K: ToString>(&self, key: K, distance: usize) -> Option<T> {
+        let key_s = key.to_string();
+        if distance == 0 {
+            return self.values.get(&key_s).map(|i| i.clone());
+        }
+        match &self.enclosing {
+            Some(inner) => inner.borrow().get_at(key_s, distance - 1),
+            None => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -161,5 +176,29 @@ mod test {
         assert_eq!(Some(42), sut.get("foo"));
         assert_eq!(Some(84), enclosing_1.get("foo"));
         assert_eq!(Some(168), enclosing_2.get("foo"));
+    }
+
+    #[test]
+    fn get_at_1() {
+        let sut = Environment::<u32>::new();
+        sut.define("foo", 42);
+        let enclosing_1 = sut.enclose();
+        enclosing_1.define("foo", 84);
+        assert_eq!(Some(42), enclosing_1.get_at("foo", 1));
+        assert_eq!(Some(84), enclosing_1.get_at("foo", 0));
+    }
+
+    #[test]
+    fn get_at_2() {
+        let sut = Environment::<u32>::new();
+        sut.define("foo", 42);
+        let enclosing_1 = sut.enclose();
+        let enclosing_2 = enclosing_1.enclose();
+        let enclosing_3 = enclosing_2.enclose();
+        enclosing_3.define("foo", 84);
+        assert_eq!(Some(42), enclosing_3.get_at("foo", 3));
+        assert_eq!(None, enclosing_3.get_at("foo", 2));
+        assert_eq!(None, enclosing_3.get_at("foo", 1));
+        assert_eq!(Some(84), enclosing_3.get_at("foo", 0));
     }
 }

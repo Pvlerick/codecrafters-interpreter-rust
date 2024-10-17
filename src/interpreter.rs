@@ -1,8 +1,10 @@
 use std::{
     cell::RefCell,
+    collections::HashMap,
     error::Error,
     fmt::{Debug, Display},
     io::{stdout, BufRead, Write},
+    ops::Deref,
     rc::Rc,
 };
 
@@ -10,12 +12,14 @@ use crate::{
     environment::Environment,
     errors::{ErrorMessage, InterpreterError},
     parser::{Expr, Parser, Statement},
+    resolver::{HashableExpr, Resolver},
     scanner::{Literal, TokenType},
 };
 
 pub struct Interpreter {
     parser: Option<Parser>,
     global_environment: Environment<Type>,
+    resolve_table: Option<HashMap<HashableExpr, usize>>,
     output: Rc<RefCell<dyn Write>>,
     pub has_parsing_errors: bool,
 }
@@ -25,6 +29,7 @@ impl Interpreter {
         Self {
             parser: Some(parser),
             global_environment: Interpreter::new_global_environment(),
+            resolve_table: None,
             output: Rc::new(RefCell::new(stdout())),
             has_parsing_errors: false,
         }
@@ -34,6 +39,7 @@ impl Interpreter {
         Self {
             parser: Some(parser),
             global_environment: Interpreter::new_global_environment(),
+            resolve_table: None,
             output,
             has_parsing_errors: false,
         }
@@ -63,7 +69,8 @@ impl Interpreter {
             Some(mut parser) => {
                 match parser.parse_expression()? {
                     Some(expr) => {
-                        let result = self.eval(&Interpreter::new_global_environment(), &expr)?;
+                        let result =
+                            self.eval(&Interpreter::new_global_environment(), &Rc::new(expr))?;
                         write!(self.output.borrow_mut(), "{}", result)
                             .expect("cannot write to output");
                     }
@@ -87,7 +94,11 @@ impl Interpreter {
         let environment = self.global_environment.clone();
         match self.parser.take() {
             Some(mut parser) => {
-                for statement in parser.parse()? {
+                let statements = parser.parse()?.collect::<Vec<_>>();
+                let mut resolver = Resolver::new();
+                resolver.resolve(&statements);
+                self.resolve_table = Some(resolver.resolve_table);
+                for statement in statements {
                     self.execute_statement(&statement, &environment)?;
                 }
 
@@ -171,9 +182,9 @@ impl Interpreter {
     fn eval(
         &mut self,
         environment: &Environment<Type>,
-        expression: &Expr,
+        expression: &Rc<Expr>,
     ) -> Result<Type, InterpreterError> {
-        match expression {
+        match expression.deref() {
             Expr::Literal(token) => match token.token_type {
                 TokenType::True => Ok(Type::Boolean(true)),
                 TokenType::False => Ok(Type::Boolean(false)),
@@ -270,13 +281,30 @@ impl Interpreter {
                     token.line,
                 )),
             },
-            Expr::Variable(token) => match environment.get(&token.lexeme) {
-                Some(value) => Ok(value.clone()),
-                None => Err(InterpreterError::evaluating(
-                    format!("Undefined variable '{}'", token.lexeme),
-                    token.line,
-                )),
-            },
+            Expr::Variable(token) => {
+                // TODO Refactor
+                let distance = self
+                    .resolve_table
+                    .as_ref()
+                    .unwrap()
+                    .get(&HashableExpr::from(expression.clone()));
+                let distance = match distance {
+                    Some(distance) => *distance,
+                    None => {
+                        return Err(InterpreterError::evaluating(
+                            format!("Undefined variable in scope '{}'", token.lexeme),
+                            token.line,
+                        ))
+                    }
+                };
+                match environment.get(&token.lexeme) {
+                    Some(value) => Ok(value.clone()),
+                    None => Err(InterpreterError::evaluating(
+                        format!("Undefined variable '{}'", token.lexeme),
+                        token.line,
+                    )),
+                }
+            }
             Expr::Assignment(token, expr) => {
                 let name = token.lexeme.to_owned();
                 let value = self.eval(environment, expr)?;
