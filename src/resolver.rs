@@ -134,7 +134,7 @@ impl Resolver {
     fn declare<T: ToString>(&mut self, name: &T) {
         self.scopes
             .last_mut()
-            .and_then(|i| i.insert(name.to_string(), Variable::declare()));
+            .and_then(|i| i.insert(name.to_string(), Variable::new()));
     }
 
     fn define<T: ToString>(&mut self, name: &T) {
@@ -152,7 +152,7 @@ struct Variable {
 }
 
 impl Variable {
-    fn declare() -> Self {
+    fn new() -> Self {
         Self { is_defined: false }
     }
 

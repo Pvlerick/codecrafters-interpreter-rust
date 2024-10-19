@@ -26,13 +26,7 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new(parser: Parser) -> Self {
-        Self {
-            parser: Some(parser),
-            global_environment: Interpreter::new_global_environment(),
-            resolve_table: None,
-            output: Rc::new(RefCell::new(stdout())),
-            has_parsing_errors: false,
-        }
+        Self::with_output(parser, Rc::new(RefCell::new(stdout())))
     }
 
     pub fn with_output(parser: Parser, output: Rc<RefCell<dyn Write>>) -> Self {

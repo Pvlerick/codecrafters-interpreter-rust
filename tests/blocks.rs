@@ -105,7 +105,7 @@ fn run_block_unclosed_block() {
 
 #[test]
 fn run_block_assign_using_same_name_as_outer_variable() {
-    let (output, err) = interpreter::run_content(
+    let (_, err) = interpreter::run_content(
         r#"var a = 1;
 {
     var a = a + 2;
@@ -113,11 +113,6 @@ fn run_block_assign_using_same_name_as_outer_variable() {
 }
 print a;"#,
     );
-    assert!(err.is_none());
-    assert_eq!(
-        r#"3
-1
-"#,
-        output
-    );
+    // See part 11.3.2 in the book
+    assert!(err.is_some());
 }
