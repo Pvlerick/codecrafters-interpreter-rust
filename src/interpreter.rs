@@ -281,8 +281,6 @@ impl Interpreter {
                     .as_ref()
                     .unwrap()
                     .get(&HashableExpr::from(expression.clone()));
-                // FIXME This makes some of the tests go infinite loop
-                // dbg!(&environment);
                 match (
                     distance.and_then(|i| environment.get_at(&token.lexeme, *i)),
                     self.global_environment.get(&token.lexeme),
@@ -408,7 +406,6 @@ trait Function: Debug + Display {
     fn arity(&self) -> usize;
 }
 
-#[derive(Debug)]
 struct LoxFunction {
     name: String,
     parameters: Vec<String>,
@@ -431,6 +428,16 @@ impl LoxFunction {
             body,
             closure,
         }
+    }
+}
+
+impl Debug for LoxFunction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "LoxFunction {{ name: \"{:?}\", parameters: {:?}, body: {:?} }}",
+            self.name, self.parameters, self.body
+        )
     }
 }
 
