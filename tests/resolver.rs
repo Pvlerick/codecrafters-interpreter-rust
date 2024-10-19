@@ -8,7 +8,8 @@ fn resolver_empty() {
     let res = parser::parse_content("");
     assert!(res.is_ok());
     let mut sut = Resolver::new();
-    sut.resolve(&res.unwrap());
+    let res = sut.resolve(&res.unwrap());
+    assert!(res.is_ok());
     assert_eq!(0, sut.resolve_table.keys().count());
 }
 
@@ -22,6 +23,7 @@ fn resolver_one_variable() {
     );
     assert!(res.is_ok());
     let mut sut = Resolver::new();
-    sut.resolve(&res.unwrap());
+    let res = sut.resolve(&res.unwrap());
+    assert!(res.is_ok());
     assert_eq!(1, sut.resolve_table.keys().count());
 }

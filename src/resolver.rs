@@ -6,7 +6,10 @@ use std::{
     rc::Rc,
 };
 
-use crate::parser::{Expr, Function, Statement};
+use crate::{
+    errors::InterpreterError,
+    parser::{Expr, Function, Statement},
+};
 
 pub struct Resolver {
     scopes: Vec<HashMap<String, Variable>>,
@@ -21,101 +24,110 @@ impl Resolver {
         }
     }
 
-    pub fn resolve(&mut self, statements: &Vec<Statement>) {
+    pub fn resolve(&mut self, statements: &Vec<Statement>) -> Result<(), InterpreterError> {
         for statement in statements {
-            self.resolve_statement(&statement);
+            self.resolve_statement(&statement)?;
         }
+        Ok(())
     }
 
-    fn resolve_statement(&mut self, statement: &Statement) {
+    fn resolve_statement(&mut self, statement: &Statement) -> Result<(), InterpreterError> {
         match statement {
             Statement::Block(statements) => {
                 self.begin_scope();
-                self.resolve(&statements);
+                self.resolve(&statements)?;
                 self.end_scope();
+                Ok(())
             }
             Statement::Variable(name, initializer) => {
                 self.declare(&name);
                 if let Some(initializer) = initializer {
-                    self.resolve_expression(initializer.clone());
+                    self.resolve_expression(initializer.clone())?;
                 }
                 self.define(&name);
+                Ok(())
             }
-            Statement::Expression(expr) => {
-                self.resolve_expression(expr.clone());
-            }
+            Statement::Expression(expr) => self.resolve_expression(expr.clone()),
             Statement::If(condition, then_branch, else_branch) => {
-                self.resolve_expression(condition.clone());
-                self.resolve_statement(then_branch);
+                self.resolve_expression(condition.clone())?;
+                self.resolve_statement(then_branch)?;
                 if let Some(else_branch) = else_branch {
-                    self.resolve_statement(else_branch);
+                    self.resolve_statement(else_branch)?;
                 }
+                Ok(())
             }
             Statement::Print(expr) => self.resolve_expression(expr.clone()),
-            Statement::Return(None) => {}
+            Statement::Return(None) => Ok(()),
             Statement::Return(Some(expr)) => self.resolve_expression(expr.clone()),
             Statement::While(condition, body) => {
-                self.resolve_expression(condition.clone());
-                self.resolve_statement(body);
+                self.resolve_expression(condition.clone())?;
+                self.resolve_statement(body)
             }
         }
     }
 
-    fn resolve_expression(&mut self, expr: Rc<Expr>) {
+    fn resolve_expression(&mut self, expr: Rc<Expr>) -> Result<(), InterpreterError> {
         match expr.deref() {
             Expr::Variable(ref token) => {
                 if self.scopes.last().map_or(false, |i| {
                     i.get(&token.lexeme).map(|i| !i.is_defined).unwrap_or(false)
                 }) {
-                    // Report error: variable used in its own initializer
-                    todo!()
+                    return Err(InterpreterError::evaluating(
+                        format!("Variable '{}' is used in its own initializer", token.lexeme),
+                        token.line,
+                    ));
                 }
 
                 self.resolve_local(expr.clone(), &token.lexeme);
+                Ok(())
             }
             Expr::Assignment(token, expr) => {
-                self.resolve_expression(expr.clone());
+                self.resolve_expression(expr.clone())?;
                 self.resolve_local(expr.clone(), &token.lexeme);
+                Ok(())
             }
             Expr::Function(name, fun) => {
                 if let Some(name) = name {
                     self.declare(name);
                     self.define(name);
                 }
-                self.resolve_function(fun);
+                self.resolve_function(fun)
             }
             Expr::Binary(_, left, right) => {
-                self.resolve_expression(left.clone());
-                self.resolve_expression(right.clone());
+                self.resolve_expression(left.clone())?;
+                self.resolve_expression(right.clone())?;
+                Ok(())
             }
             Expr::Call(callee, _, arguments) => {
-                self.resolve_expression(callee.clone());
+                self.resolve_expression(callee.clone())?;
                 for arg in arguments.iter() {
-                    self.resolve_expression(arg.clone());
+                    self.resolve_expression(arg.clone())?;
                 }
+                Ok(())
             }
             Expr::Grouping(expr) => self.resolve_expression(expr.clone()),
-            Expr::Literal(_) => {}
+            Expr::Literal(_) => Ok(()),
             Expr::Logical(_, left, right) => {
-                self.resolve_expression(left.clone());
-                self.resolve_expression(right.clone());
+                self.resolve_expression(left.clone())?;
+                self.resolve_expression(right.clone())
             }
             Expr::Unary(_, expr) => self.resolve_expression(expr.clone()),
         }
     }
 
-    fn resolve_function(&mut self, function: &Function) {
+    fn resolve_function(&mut self, function: &Function) -> Result<(), InterpreterError> {
         self.begin_scope();
         for param in function.parameters.iter() {
             self.declare(&param.lexeme);
             self.define(&param.lexeme);
         }
-        self.resolve_statement(&function.body);
+        self.resolve_statement(&function.body)?;
         self.end_scope();
+        Ok(())
     }
 
     fn resolve_local<T: ToString>(&mut self, expr: Rc<Expr>, name: &T) {
-        for scope in self.scopes.iter().enumerate().rev() {
+        for scope in self.scopes.iter().rev().enumerate() {
             if let Some(_) = scope.1.get(&name.to_string()) {
                 self.resolve_table.insert(HashableExpr(expr), scope.0);
                 break;

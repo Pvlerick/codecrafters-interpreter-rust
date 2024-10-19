@@ -5,5 +5,5 @@ mod common;
 #[test]
 fn parse_print() {
     let res = parser::parse_content("print 42;");
-    assert!(res.is_err());
+    assert!(res.is_ok());
 }

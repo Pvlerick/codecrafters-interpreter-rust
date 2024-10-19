@@ -90,7 +90,7 @@ impl Interpreter {
             Some(mut parser) => {
                 let statements = parser.parse()?.collect::<Vec<_>>();
                 let mut resolver = Resolver::new();
-                resolver.resolve(&statements);
+                resolver.resolve(&statements)?;
                 self.resolve_table = Some(resolver.resolve_table);
                 for statement in statements {
                     self.execute_statement(&statement, &environment)?;
@@ -276,25 +276,21 @@ impl Interpreter {
                 )),
             },
             Expr::Variable(token) => {
-                // TODO Refactor
                 let distance = self
                     .resolve_table
                     .as_ref()
                     .unwrap()
                     .get(&HashableExpr::from(expression.clone()));
-                let distance = match distance {
-                    Some(distance) => *distance,
-                    None => {
-                        return Err(InterpreterError::evaluating(
-                            format!("Undefined variable in scope '{}'", token.lexeme),
-                            token.line,
-                        ))
-                    }
-                };
-                match environment.get(&token.lexeme) {
-                    Some(value) => Ok(value.clone()),
-                    None => Err(InterpreterError::evaluating(
-                        format!("Undefined variable '{}'", token.lexeme),
+                // FIXME This makes some of the tests go infinite loop
+                // dbg!(&environment);
+                match (
+                    distance.and_then(|i| environment.get_at(&token.lexeme, *i)),
+                    self.global_environment.get(&token.lexeme),
+                ) {
+                    (Some(value), _) => Ok(value.clone()),
+                    (None, Some(value)) => Ok(value.clone()),
+                    _ => Err(InterpreterError::evaluating(
+                        format!("Undefined variable in scope '{}'", token.lexeme),
                         token.line,
                     )),
                 }
