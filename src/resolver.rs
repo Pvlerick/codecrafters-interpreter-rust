@@ -12,8 +12,13 @@ use crate::{
     scanner::Token,
 };
 
+enum FunctionType {
+    Function,
+}
+
 pub struct Resolver {
     scopes: Vec<HashMap<String, Variable>>,
+    current_function: Option<FunctionType>,
     pub resolve_table: HashMap<HashableExpr, usize>,
 }
 
@@ -21,6 +26,7 @@ impl Resolver {
     pub fn new() -> Self {
         Self {
             scopes: Vec::new(),
+            current_function: None,
             resolve_table: HashMap::new(),
         }
     }
@@ -58,8 +64,18 @@ impl Resolver {
                 Ok(())
             }
             Statement::Print(expr) => self.resolve_expression(expr.clone()),
-            Statement::Return(None) => Ok(()),
-            Statement::Return(Some(expr)) => self.resolve_expression(expr.clone()),
+            Statement::Return(expr) => {
+                if self.current_function.is_none() {
+                    return Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                        "Can't return from top level code.",
+                        None,
+                    )));
+                }
+                match expr {
+                    Some(expr) => self.resolve_expression(expr.clone()),
+                    None => Ok(()),
+                }
+            }
             Statement::While(condition, body) => {
                 self.resolve_expression(condition.clone())?;
                 self.resolve_statement(body)
@@ -89,10 +105,9 @@ impl Resolver {
             }
             Expr::Function(token, fun) => {
                 if let Some(token) = token {
-                    // self.declare(token)?;
                     self.define(token);
                 }
-                self.resolve_function(fun)
+                self.resolve_function(fun, FunctionType::Function)
             }
             Expr::Binary(_, left, right) => {
                 self.resolve_expression(left.clone())?;
@@ -116,14 +131,21 @@ impl Resolver {
         }
     }
 
-    fn resolve_function(&mut self, function: &Function) -> Result<(), InterpreterError> {
+    fn resolve_function(
+        &mut self,
+        function: &Function,
+        function_type: FunctionType,
+    ) -> Result<(), InterpreterError> {
         self.begin_scope();
+        let enclosing_function = self.current_function.take();
+        self.current_function = Some(function_type);
         for param in function.parameters.iter() {
             self.declare(&param)?;
             self.define(&param);
         }
         self.resolve_statement(&function.body)?;
         self.end_scope();
+        self.current_function = enclosing_function;
         Ok(())
     }
 
