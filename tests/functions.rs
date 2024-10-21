@@ -129,6 +129,7 @@ var counter = makeCounter();
 counter();
 counter();"#,
     );
+    dbg!(&err);
     assert!(err.is_none());
     assert_eq!("1\n2\n", output);
 }

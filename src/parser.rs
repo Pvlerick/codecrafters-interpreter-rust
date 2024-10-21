@@ -195,8 +195,8 @@ impl StatementsIterator {
             Some([TokenType::Fun, TokenType::Identifier]) => {
                 let expr = self.function(FunctionKind::Normal)?;
                 match &expr {
-                    Some(Expr::Function(Some(name), _)) => Ok(Some(Statement::Variable(
-                        name.to_owned(),
+                    Some(Expr::Function(Some(token), _)) => Ok(Some(Statement::Variable(
+                        token.clone(),
                         expr.map(|i| Rc::new(i)),
                     ))),
                     _ => self.add_error("invalid function declaration"),
@@ -214,10 +214,9 @@ impl StatementsIterator {
         )?;
 
         let name = match kind {
-            FunctionKind::Normal => Some(
-                self.consume(TokenType::Identifier, format!("Expect {} name", kind))?
-                    .lexeme,
-            ),
+            FunctionKind::Normal => {
+                Some(self.consume(TokenType::Identifier, format!("Expect {} name", kind))?)
+            }
             FunctionKind::Anonymous => None,
         };
 
@@ -254,14 +253,13 @@ impl StatementsIterator {
 
         match self.next_token()? {
             Some(token) if token.token_type == TokenType::Identifier => {
-                let name = token.lexeme;
                 let initializer = match self.next_matches(TokenType::Equal)? {
                     Some(_) => self.expression()?,
                     _ => None,
                 };
                 self.consume_semicolon()?;
                 Ok(Some(Statement::Variable(
-                    name,
+                    token,
                     initializer.map(|i| Rc::new(i)),
                 )))
             }
@@ -666,7 +664,7 @@ impl Display for Function {
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    Variable(String, Option<Rc<Expr>>),
+    Variable(Token, Option<Rc<Expr>>),
     Print(Rc<Expr>),
     Return(Option<Rc<Expr>>),
     Expression(Rc<Expr>),
@@ -714,7 +712,7 @@ pub enum Expr {
     Unary(Token, Rc<Expr>),
     Variable(Token),
     Assignment(Token, Rc<Expr>),
-    Function(Option<String>, Function),
+    Function(Option<Token>, Function),
     Call(Rc<Expr>, Token, Box<Vec<Rc<Expr>>>),
 }
 
@@ -781,11 +779,11 @@ impl Display for Expr {
                         .join(",")
                 )
             }
-            Function(name, fun) => {
+            Function(token, fun) => {
                 write!(
                     f,
                     "fun {}({})",
-                    name.as_ref().unwrap_or(&"".to_owned()),
+                    token.as_ref().map_or_else(|| "", |i| &i.lexeme),
                     fun
                 )
             }

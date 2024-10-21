@@ -7,8 +7,9 @@ use std::{
 };
 
 use crate::{
-    errors::InterpreterError,
+    errors::{ErrorMessage, InterpreterError},
     parser::{Expr, Function, Statement},
+    scanner::Token,
 };
 
 pub struct Resolver {
@@ -39,12 +40,12 @@ impl Resolver {
                 self.end_scope();
                 Ok(())
             }
-            Statement::Variable(name, initializer) => {
-                self.declare(&name);
+            Statement::Variable(token, initializer) => {
+                self.declare(&token)?;
                 if let Some(initializer) = initializer {
                     self.resolve_expression(initializer.clone())?;
                 }
-                self.define(&name);
+                self.define(&token);
                 Ok(())
             }
             Statement::Expression(expr) => self.resolve_expression(expr.clone()),
@@ -86,10 +87,10 @@ impl Resolver {
                 self.resolve_local(expr.clone(), &token.lexeme);
                 Ok(())
             }
-            Expr::Function(name, fun) => {
-                if let Some(name) = name {
-                    self.declare(name);
-                    self.define(name);
+            Expr::Function(token, fun) => {
+                if let Some(token) = token {
+                    self.declare(token)?;
+                    self.define(token);
                 }
                 self.resolve_function(fun)
             }
@@ -118,8 +119,8 @@ impl Resolver {
     fn resolve_function(&mut self, function: &Function) -> Result<(), InterpreterError> {
         self.begin_scope();
         for param in function.parameters.iter() {
-            self.declare(&param.lexeme);
-            self.define(&param.lexeme);
+            self.declare(&param)?;
+            self.define(&param);
         }
         self.resolve_statement(&function.body)?;
         self.end_scope();
@@ -143,10 +144,25 @@ impl Resolver {
         self.scopes.pop();
     }
 
-    fn declare<T: ToString>(&mut self, name: &T) {
+    fn declare(&mut self, token: &Token) -> Result<(), InterpreterError> {
+        dbg!(&self.scopes);
+        if self
+            .scopes
+            .last()
+            .map_or(false, |i| i.contains_key(&token.lexeme))
+        {
+            return Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                format!(
+                    "Already a variable with name '{}' in this scope",
+                    token.lexeme
+                ),
+                Some(token.line),
+            )));
+        }
         self.scopes
             .last_mut()
-            .and_then(|i| i.insert(name.to_string(), Variable::new()));
+            .and_then(|i| i.insert(token.lexeme.to_owned(), Variable::new()));
+        Ok(())
     }
 
     fn define<T: ToString>(&mut self, name: &T) {
