@@ -50,11 +50,8 @@ impl Interpreter {
 
     fn new_global_environment() -> Environment<Type> {
         let env = Environment::<Type>::new();
-
         env.define("clock", Type::Function(Rc::new(native_functions::Clock {})));
-
         env.define("env", Type::Function(Rc::new(native_functions::Env {})));
-
         env
     }
 
@@ -119,14 +116,13 @@ impl Interpreter {
                 Some(expr) => StatementResult::Return(self.eval(environment, expr)?),
                 None => StatementResult::Return(Type::Nil),
             }),
-            Statement::Variable(name, Some(expr)) => {
-                let name = name.to_owned();
+            Statement::Variable(token, Some(expr)) => {
                 let value = self.eval(environment, expr)?;
-                environment.define(name, value);
+                environment.define(&token.lexeme, value);
                 Ok(StatementResult::Empty)
             }
-            Statement::Variable(name, None) => {
-                environment.define(name, Type::Nil);
+            Statement::Variable(token, None) => {
+                environment.define(&token.lexeme, Type::Nil);
                 Ok(StatementResult::Empty)
             }
             Statement::Print(expr) => {
@@ -288,7 +284,7 @@ impl Interpreter {
                     (Some(value), _) => Ok(value.clone()),
                     (None, Some(value)) => Ok(value.clone()),
                     _ => Err(InterpreterError::evaluating(
-                        format!("Undefined variable in scope '{}'", token.lexeme),
+                        format!("Undefined variable in scope: '{}'", token.lexeme),
                         token.line,
                     )),
                 }
@@ -339,8 +335,8 @@ impl Interpreter {
                     )),
                 }
             }
-            Expr::Function(name, fun) => Ok(Type::Function(Rc::new(LoxFunction::new(
-                name.as_ref(),
+            Expr::Function(token, fun) => Ok(Type::Function(Rc::new(LoxFunction::new(
+                token.as_ref().map(|i| i.lexeme.to_owned()),
                 fun.parameters
                     .iter()
                     .map(|i| i.lexeme.to_string())
@@ -414,8 +410,8 @@ struct LoxFunction {
 }
 
 impl LoxFunction {
-    fn new<T: ToString>(
-        name: Option<T>,
+    fn new(
+        name: Option<String>,
         parameters: Vec<String>,
         body: Rc<Statement>,
         closure: Environment<Type>,

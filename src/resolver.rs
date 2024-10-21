@@ -89,7 +89,7 @@ impl Resolver {
             }
             Expr::Function(token, fun) => {
                 if let Some(token) = token {
-                    self.declare(token)?;
+                    // self.declare(token)?;
                     self.define(token);
                 }
                 self.resolve_function(fun)
@@ -145,7 +145,6 @@ impl Resolver {
     }
 
     fn declare(&mut self, token: &Token) -> Result<(), InterpreterError> {
-        dbg!(&self.scopes);
         if self
             .scopes
             .last()
@@ -165,11 +164,11 @@ impl Resolver {
         Ok(())
     }
 
-    fn define<T: ToString>(&mut self, name: &T) {
+    fn define(&mut self, token: &Token) {
         self.scopes.last_mut().and_then(|i| {
-            i.entry(name.to_string())
+            i.entry(token.lexeme.to_string())
                 .and_modify(|i| i.mark_as_defined());
-            None::<T>
+            None::<()>
         });
     }
 }
