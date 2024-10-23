@@ -112,6 +112,14 @@ impl Interpreter {
         environment: &Environment<Type>,
     ) -> Result<StatementResult, InterpreterError> {
         match statement {
+            Statement::Class(token, _methods) => {
+                environment.define(&token.lexeme, Type::Nil);
+                let class = LoxClass::new(token.lexeme.to_owned());
+                environment
+                    .assign(&token.lexeme, Type::Class(Rc::new(class)))
+                    .expect("should never fail");
+                Ok(StatementResult::Empty)
+            }
             Statement::Return(expr) => Ok(match expr {
                 Some(expr) => StatementResult::Return(self.eval(environment, expr)?),
                 None => StatementResult::Return(Type::Nil),
@@ -368,6 +376,7 @@ enum Type {
     Number(f64),
     String(Rc<String>),
     Function(Rc<dyn Function>),
+    Class(Rc<dyn Class>),
 }
 
 impl Display for Type {
@@ -377,7 +386,8 @@ impl Display for Type {
             Type::Number(n) => write!(f, "{}", n),
             Type::String(s) => write!(f, "{}", s),
             Type::Boolean(b) => write!(f, "{}", b),
-            Type::Function(fun) => write!(f, "{}()", fun),
+            Type::Function(fun) => write!(f, "{}", fun),
+            Type::Class(class) => write!(f, "{}", class),
         }
     }
 }
@@ -460,7 +470,7 @@ impl Function for LoxFunction {
 
 impl Display for LoxFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.name)
+        write!(f, "fun {}({})", self.name, self.arity())
     }
 }
 
@@ -539,5 +549,42 @@ mod native_functions {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "env")
         }
+    }
+}
+
+trait Class: Debug + Display {
+    fn _call_method(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Type>,
+        line: usize,
+    ) -> Result<StatementResult, InterpreterError>;
+}
+
+#[derive(Debug)]
+struct LoxClass {
+    name: String,
+}
+
+impl LoxClass {
+    fn new(name: String) -> Self {
+        Self { name }
+    }
+}
+
+impl Class for LoxClass {
+    fn _call_method(
+        &self,
+        _interpreter: &mut Interpreter,
+        _arguments: Vec<Type>,
+        _line: usize,
+    ) -> Result<StatementResult, InterpreterError> {
+        todo!()
+    }
+}
+
+impl Display for LoxClass {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "class {} {{...}}", self.name)
     }
 }

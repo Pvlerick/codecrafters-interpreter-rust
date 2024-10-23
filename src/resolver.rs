@@ -12,8 +12,10 @@ use crate::{
     scanner::Token,
 };
 
+#[derive(Debug)]
 enum FunctionType {
     Function,
+    Method,
 }
 
 pub struct Resolver {
@@ -40,6 +42,24 @@ impl Resolver {
 
     fn resolve_statement(&mut self, statement: &Statement) -> Result<(), InterpreterError> {
         match statement {
+            Statement::Class(token, methods) => {
+                self.declare(token)?;
+                self.define(token);
+                for method in methods {
+                    match method.as_deref() {
+                        Some(Expr::Function(_, method)) => {
+                            self.resolve_function(method, FunctionType::Method)?
+                        }
+                        _ => {
+                            return Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                                "expression is not a method",
+                                None,
+                            )))
+                        }
+                    }
+                }
+                Ok(())
+            }
             Statement::Block(statements) => {
                 self.begin_scope();
                 self.resolve(&statements)?;
@@ -67,7 +87,7 @@ impl Resolver {
             Statement::Return(expr) => {
                 if self.current_function.is_none() {
                     return Err(InterpreterError::InterpreterError(ErrorMessage::new(
-                        "Can't return from top level code.",
+                        "Can't return from top level code",
                         None,
                     )));
                 }

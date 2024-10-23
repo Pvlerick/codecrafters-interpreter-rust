@@ -8,7 +8,8 @@ use crate::{
 /* Grammar:
 
 program        → declaration* EOF ;
-declaration    → funcDecl | varDecl | statement ;
+declaration    → classDecl | funcDecl | varDecl | statement ;
+classDecl      → "class" IDENTIFIER "{" function* "}" ;
 funcDecl       → "fun" function ;
 function       → IDENTIFIER "(" parameters? ")" block ;
 parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
@@ -192,6 +193,7 @@ impl StatementsIterator {
             .map(|i| i.iter().map(|t| t.token_type).collect::<Vec<_>>())
             .as_deref()
         {
+            Some([TokenType::Class, _]) => self.class_declaration().map(|i| Some(i)),
             Some([TokenType::Fun, TokenType::Identifier]) => {
                 let expr = self.function(FunctionKind::Normal)?;
                 match &expr {
@@ -207,14 +209,31 @@ impl StatementsIterator {
         }
     }
 
+    fn class_declaration(&mut self) -> Result<Statement, ()> {
+        self.consume(TokenType::Class, "Expect 'class' before class body")?;
+        let token = self.consume(TokenType::Identifier, "Expect class name")?;
+        self.consume(TokenType::LeftBrace, "Expect '{' before class body")?;
+
+        let mut methods = Vec::new();
+        while !self.peek_type(TokenType::RightBrace)? {
+            methods.push(self.function(FunctionKind::Method)?.map(|i| Rc::new(i)));
+        }
+
+        self.consume(TokenType::RightBrace, "Expect '}' after class body")?;
+
+        Ok(Statement::Class(token, methods))
+    }
+
     fn function(&mut self, kind: FunctionKind) -> Result<Option<Expr>, ()> {
-        self.consume(
-            TokenType::Fun,
-            format!("Expect 'fun' in {} declaration", kind),
-        )?;
+        if matches!(kind, FunctionKind::Normal | FunctionKind::Anonymous) {
+            self.consume(
+                TokenType::Fun,
+                format!("Expect 'fun' in {} declaration", kind),
+            )?;
+        }
 
         let name = match kind {
-            FunctionKind::Normal => {
+            FunctionKind::Normal | FunctionKind::Method => {
                 Some(self.consume(TokenType::Identifier, format!("Expect {} name", kind))?)
             }
             FunctionKind::Anonymous => None,
@@ -664,6 +683,7 @@ impl Display for Function {
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
+    Class(Token, Vec<Option<Rc<Expr>>>),
     Variable(Token, Option<Rc<Expr>>),
     Print(Rc<Expr>),
     Return(Option<Rc<Expr>>),
@@ -699,6 +719,7 @@ impl Display for Statement {
                 )
             }
             While(condition, body) => write!(f, "while {} then {}", condition, body),
+            Class(name, _) => write!(f, "class {}{{...}}", name),
         }
     }
 }
@@ -795,6 +816,7 @@ impl Display for Expr {
 enum FunctionKind {
     Normal,
     Anonymous,
+    Method,
 }
 
 impl Display for FunctionKind {
@@ -802,6 +824,7 @@ impl Display for FunctionKind {
         match self {
             FunctionKind::Normal => write!(f, "function"),
             FunctionKind::Anonymous => write!(f, "anonymous function"),
+            FunctionKind::Method => write!(f, "method"),
         }
     }
 }
