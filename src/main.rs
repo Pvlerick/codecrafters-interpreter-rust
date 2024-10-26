@@ -1,7 +1,6 @@
-use std::collections::VecDeque;
 use std::env;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufReader, Write};
 
 use interpreter::Interpreter;
 use parser::Parser;
@@ -73,7 +72,7 @@ fn tokenize_file(file_path: &str) {
             Ok(token) => println!("{}", token),
             Err(message) => {
                 has_errors = true;
-                eprintln!("{}", message);
+                eprintln!("{}.", message);
             }
         }
     }
