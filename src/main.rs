@@ -178,10 +178,10 @@ fn run_file(file_path: &str) {
                     eprintln!("{}", error);
                     match error {
                         InterpreterError::ScanningError(_)
-                        | InterpreterError::ScanningErrors(_) => std::process::exit(70),
-                        InterpreterError::ParsingErrors(_)
-                        | InterpreterError::InterpreterError(_)
-                        | InterpreterError::RuntimeError(_) => std::process::exit(65),
+                        | InterpreterError::ScanningErrors(_)
+                        | InterpreterError::ParsingErrors(_) => std::process::exit(65),
+                        InterpreterError::InterpreterError(_)
+                        | InterpreterError::RuntimeError(_) => std::process::exit(70),
                     }
                 }
             }
