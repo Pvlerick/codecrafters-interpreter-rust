@@ -51,5 +51,5 @@ breakfast.meat = "sausage";
 print breakfast.meat;"#,
     );
     assert_none!(err);
-    assert_eq!("breakfast\n", output);
+    assert_eq!("sausage\n", output);
 }

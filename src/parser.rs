@@ -464,6 +464,9 @@ impl StatementsIterator {
                 (Some(value), Some(Expr::Variable(token))) => {
                     Ok(Some(Expr::assignment(token, value)))
                 }
+                (Some(value), Some(Expr::Get(instance, field))) => {
+                    Ok(Some(Expr::Set(instance, field, Rc::new(value))))
+                }
                 _ => {
                     let _ = self.add_error::<_, ()>("Invalid assignment target");
                     Ok(None)
@@ -749,6 +752,7 @@ pub enum Expr {
     Function(Option<Token>, Function),
     Call(Rc<Expr>, Token, Box<Vec<Rc<Expr>>>),
     Get(Rc<Expr>, Token),
+    Set(Rc<Expr>, Token, Rc<Expr>),
 }
 
 impl Into<Statement> for Expr {
@@ -822,8 +826,11 @@ impl Display for Expr {
                     fun
                 )
             }
-            Get(_prop, _token) => {
-                todo!()
+            Get(instance, field) => {
+                write!(f, "(get {}.{})", instance, field)
+            }
+            Set(instance, field, value) => {
+                write!(f, "(set {}.{}={})", instance, field, value)
             }
         }
     }

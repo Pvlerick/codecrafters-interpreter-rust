@@ -116,7 +116,7 @@ impl Interpreter {
                 environment.define(&token.lexeme, Type::Nil);
                 let class = LoxClass::new(token.lexeme.to_owned());
                 environment
-                    .assign(&token.lexeme, Type::Instance(Rc::new(class)))
+                    .assign(&token.lexeme, Type::Class(Rc::new(class)))
                     .expect("should never fail");
                 Ok(StatementResult::Empty)
             }
@@ -337,9 +337,9 @@ impl Interpreter {
                             StatementResult::Return(t) => Ok(t),
                         }
                     }
-                    Type::Instance(_inst) => {
-                        todo!();
-                    }
+                    Type::Class(class) => Ok(Type::Instance(Rc::new(RefCell::new(
+                        LoxInstance::new(class),
+                    )))),
                     _ => Err(InterpreterError::evaluating(
                         "Can only call functions and instances",
                         right_paren.line,
@@ -356,12 +356,24 @@ impl Interpreter {
                 environment.clone(),
             )))),
             Expr::Get(expr, token) => match self.eval(environment, expr)? {
-                Type::Instance(instance) => instance.get(&token.lexeme),
+                Type::Instance(instance) => Ok(instance.borrow().get(&token.lexeme)),
                 _ => Err(InterpreterError::evaluating(
                     "Only instances have properties",
                     token.line,
                 )),
             },
+            Expr::Set(expr, token, value) => {
+                match (self.eval(environment, expr)?, self.eval(environment, value)) {
+                    (Type::Instance(instance), Ok(value)) => {
+                        instance.borrow_mut().set(&token.lexeme, value);
+                        Ok(Type::Nil)
+                    }
+                    _ => Err(InterpreterError::evaluating(
+                        "Only instances have properties",
+                        token.line,
+                    )),
+                }
+            }
         }
     }
 
@@ -386,7 +398,8 @@ enum Type {
     Number(f64),
     String(Rc<String>),
     Function(Rc<dyn Function>),
-    Instance(Rc<dyn Instance>),
+    Class(Rc<LoxClass>),
+    Instance(Rc<RefCell<dyn Instance>>),
 }
 
 impl Display for Type {
@@ -397,7 +410,8 @@ impl Display for Type {
             Type::String(s) => write!(f, "{}", s),
             Type::Boolean(b) => write!(f, "{}", b),
             Type::Function(fun) => write!(f, "{}", fun),
-            Type::Instance(class) => write!(f, "{}", class),
+            Type::Class(class) => write!(f, "{}", class),
+            Type::Instance(instance) => write!(f, "{}", instance.borrow()),
         }
     }
 }
@@ -572,7 +586,7 @@ trait Instance: Debug + Display {
         line: usize,
     ) -> Result<StatementResult, InterpreterError>;
 
-    fn get(&self, name: &str) -> Result<Type, InterpreterError>;
+    fn get(&self, name: &str) -> Type;
     #[allow(dead_code)]
     fn set(&mut self, name: &str, value: Type);
 }
@@ -588,58 +602,22 @@ impl LoxClass {
     }
 }
 
-impl Instance for LoxClass {
-    fn call_method(
-        &self,
-        _name: String,
-        _interpreter: &mut Interpreter,
-        _arguments: Vec<Type>,
-        _line: usize,
-    ) -> Result<StatementResult, InterpreterError> {
-        todo!()
-    }
-
-    fn get(&self, _name: &str) -> Result<Type, InterpreterError> {
-        todo!()
-    }
-
-    fn set(&mut self, _name: &str, _value: Type) {
-        todo!()
-    }
-}
-
 impl Display for LoxClass {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "class {} {{...}}", self.name)
     }
 }
 
-impl Function for LoxClass {
-    fn call(
-        &self,
-        _: &mut Interpreter,
-        _: Vec<Type>,
-        _: usize,
-    ) -> Result<StatementResult, InterpreterError> {
-        let instance = LoxInstance::new(self.clone());
-        Ok(StatementResult::Return(Type::Instance(Rc::new(instance))))
-    }
-
-    fn arity(&self) -> usize {
-        0
-    }
-}
-
 #[derive(Debug)]
 struct LoxInstance {
-    class: LoxClass,
+    class: Rc<LoxClass>,
     fields: HashMap<String, Type>,
 }
 
 impl LoxInstance {
-    fn new(class: LoxClass) -> Self {
+    fn new(class: Rc<LoxClass>) -> Self {
         Self {
-            class,
+            class: class.clone(),
             fields: HashMap::new(),
         }
     }
@@ -656,10 +634,10 @@ impl Instance for LoxInstance {
         Ok(StatementResult::Empty)
     }
 
-    fn get(&self, name: &str) -> Result<Type, InterpreterError> {
-        self.fields.get(name).map(|i| i.clone()).ok_or_else(|| {
-            InterpreterError::RuntimeError(ErrorMessage::new("Undefined property '{name}'", None))
-        })
+    fn get(&self, name: &str) -> Type {
+        self.fields
+            .get(name)
+            .map_or_else(|| Type::Nil, |i| i.clone())
     }
 
     fn set(&mut self, name: &str, value: Type) {

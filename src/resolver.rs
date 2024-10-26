@@ -105,6 +105,10 @@ impl Resolver {
 
     fn resolve_expression(&mut self, expr: Rc<Expr>) -> Result<(), InterpreterError> {
         match expr.deref() {
+            Expr::Set(instance, _, value) => {
+                self.resolve_expression(instance.clone())?;
+                self.resolve_expression(value.clone())
+            }
             Expr::Get(expr, _) => self.resolve_expression(expr.clone()),
             Expr::Variable(ref token) => {
                 if self.scopes.last().map_or(false, |i| {
