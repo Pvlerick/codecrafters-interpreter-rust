@@ -291,9 +291,9 @@ impl Interpreter {
                 ) {
                     (Some(value), _) => Ok(value.clone()),
                     (None, Some(value)) => Ok(value.clone()),
-                    _ => Err(InterpreterError::evaluating(
+                    _ => Err(InterpreterError::resolving(
                         format!("Undefined variable in scope: '{}'", token.lexeme),
-                        token.line,
+                        Some(token.line),
                     )),
                 }
             }
