@@ -34,6 +34,19 @@ fn get_property() {
 }
 
 var breakfast = Breakfast();
+print breakfast.meat;"#,
+    );
+    assert_none!(err);
+    assert_eq!("nil\n", output);
+}
+
+#[test]
+fn set_get_property() {
+    let (output, err) = interpreter::run_content(
+        r#"class Breakfast {
+}
+
+var breakfast = Breakfast();
 breakfast.meat = "sausage";
 print breakfast.meat;"#,
     );

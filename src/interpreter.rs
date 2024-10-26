@@ -337,7 +337,9 @@ impl Interpreter {
                             StatementResult::Return(t) => Ok(t),
                         }
                     }
-                    Type::Instance(inst) => Ok(Type::Nil),
+                    Type::Instance(_inst) => {
+                        todo!();
+                    }
                     _ => Err(InterpreterError::evaluating(
                         "Can only call functions and instances",
                         right_paren.line,
@@ -561,6 +563,7 @@ mod native_functions {
 }
 
 trait Instance: Debug + Display {
+    #[allow(dead_code)]
     fn call_method(
         &self,
         name: String,
@@ -570,6 +573,7 @@ trait Instance: Debug + Display {
     ) -> Result<StatementResult, InterpreterError>;
 
     fn get(&self, name: &str) -> Result<Type, InterpreterError>;
+    #[allow(dead_code)]
     fn set(&mut self, name: &str, value: Type);
 }
 

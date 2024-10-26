@@ -822,8 +822,8 @@ impl Display for Expr {
                     fun
                 )
             }
-            Get(prop, token) => {
-                write!(f, "property ")
+            Get(_prop, _token) => {
+                todo!()
             }
         }
     }
