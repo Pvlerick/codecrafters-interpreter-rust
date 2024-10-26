@@ -72,7 +72,7 @@ fn tokenize_file(file_path: &str) {
             Ok(token) => println!("{}", token),
             Err(message) => {
                 has_errors = true;
-                eprintln!("{}.", message);
+                eprintln!("{}", message);
             }
         }
     }
