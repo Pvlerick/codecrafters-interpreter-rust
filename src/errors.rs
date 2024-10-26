@@ -6,6 +6,7 @@ pub enum InterpreterError {
     ScanningErrors(Vec<ErrorMessage>),
     ParsingErrors(Vec<ErrorMessage>),
     InterpreterError(ErrorMessage),
+    ResolverError(ErrorMessage),
     RuntimeError(ErrorMessage),
 }
 
@@ -21,6 +22,10 @@ impl InterpreterError {
     pub fn evaluating<T: ToString>(message: T, line: usize) -> InterpreterError {
         InterpreterError::InterpreterError(ErrorMessage::new(message, Some(line)))
     }
+
+    pub fn resolving<T: ToString>(message: T, line: Option<usize>) -> InterpreterError {
+        InterpreterError::ResolverError(ErrorMessage::new(message, line))
+    }
 }
 
 impl Error for InterpreterError {}
@@ -34,7 +39,10 @@ impl<T> Into<Result<T, Self>> for InterpreterError {
 impl Display for InterpreterError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            InterpreterError::ScanningError(msg) | InterpreterError::InterpreterError(msg) => {
+            InterpreterError::ScanningError(msg)
+            | InterpreterError::InterpreterError(msg)
+            | InterpreterError::RuntimeError(msg)
+            | InterpreterError::ResolverError(msg) => {
                 write!(f, "{}", msg)
             }
             InterpreterError::ScanningErrors(msgs) | InterpreterError::ParsingErrors(msgs) => {
@@ -43,7 +51,6 @@ impl Display for InterpreterError {
                 }
                 Ok(())
             }
-            InterpreterError::RuntimeError(msg) => write!(f, "{}", msg),
         }
     }
 }

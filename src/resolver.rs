@@ -51,10 +51,10 @@ impl Resolver {
                             self.resolve_function(method, FunctionType::Method)?
                         }
                         _ => {
-                            return Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                            return Err(InterpreterError::resolving(
                                 "expression is not a method",
-                                None,
-                            )))
+                                Some(token.line),
+                            ))
                         }
                     }
                 }
@@ -86,10 +86,10 @@ impl Resolver {
             Statement::Print(expr) => self.resolve_expression(expr.clone()),
             Statement::Return(expr) => {
                 if self.current_function.is_none() {
-                    return Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                    return Err(InterpreterError::resolving(
                         "Can't return from top level code",
                         None,
-                    )));
+                    ));
                 }
                 match expr {
                     Some(expr) => self.resolve_expression(expr.clone()),
@@ -110,9 +110,9 @@ impl Resolver {
                 if self.scopes.last().map_or(false, |i| {
                     i.get(&token.lexeme).map(|i| !i.is_defined).unwrap_or(false)
                 }) {
-                    return Err(InterpreterError::evaluating(
+                    return Err(InterpreterError::resolving(
                         format!("Variable '{}' is used in its own initializer", token.lexeme),
-                        token.line,
+                        Some(token.line),
                     ));
                 }
 
