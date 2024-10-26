@@ -1,6 +1,7 @@
+use std::collections::VecDeque;
 use std::env;
 use std::fs::File;
-use std::io::{self, BufReader, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 
 use interpreter::Interpreter;
 use parser::Parser;
@@ -113,11 +114,13 @@ fn parse_file(file_path: &str) {
     match tokens {
         Ok(tokens) => {
             let mut parser = Parser::new(tokens);
-            match parser.parse() {
-                Ok(statements) => {
-                    for statement in statements {
-                        println!("{}", statement);
-                    }
+            match parser.parse_expression() {
+                Ok(Some(expr)) => {
+                    println!("{}", expr);
+                }
+                Ok(None) => {
+                    eprintln!("No expression found");
+                    std::process::exit(65);
                 }
                 Err(error) => {
                     eprintln!("{}", error);
