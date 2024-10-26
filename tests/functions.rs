@@ -5,14 +5,14 @@ mod common;
 #[test]
 fn function_clock() {
     let (_, err) = interpreter::run_content("print clock();");
-    assert!(err.is_none());
+    assert_none!(err);
 }
 
 #[test]
 fn function_env() {
     std::env::set_var("LOX_TEST_ENV_VAR", "foo");
     let (output, err) = interpreter::run_content("print env(\"LOX_TEST_ENV_VAR\");");
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("foo\n", output);
 }
 
@@ -26,7 +26,7 @@ fn function_print_42() {
 print42();
 print42();"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("42\n42\n", output);
 }
 
@@ -39,7 +39,7 @@ fn function_print_sum() {
 
 printSum(42, 5);"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("47\n", output);
 }
 
@@ -52,7 +52,7 @@ fn function_return_value() {
 
 print sum(37, 4) + 1;"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("42\n", output);
 }
 
@@ -68,7 +68,7 @@ fn function_return() {
 
 printIf(9, 2);"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("", output);
 }
 
@@ -89,7 +89,7 @@ fn function_nested_returns() {
 
 f(9);"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("n is > 5\n", output);
 }
 
@@ -109,7 +109,7 @@ fn function_nested_returns_in_loop() {
 
 print f(1);"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("1\n2\n3\n", output);
 }
 
@@ -129,7 +129,7 @@ var counter = makeCounter();
 counter();
 counter();"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("1\n2\n", output);
 }
 
@@ -144,19 +144,19 @@ c(fun(a) {
   print a;
 }, "foo");"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("foo\n", output);
 }
 
 #[test]
 fn function_expression() {
     let (output, err) = interpreter::run_content("fun () {};");
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("", output);
 }
 
 #[test]
 fn function_err_not_a_function() {
     let (_, err) = interpreter::run_content(r#""not a function();"#);
-    assert!(err.is_some());
+    assert_some!(err);
 }

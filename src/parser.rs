@@ -32,7 +32,7 @@ comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary | call ;
-call           → primary ( "(" arguments? ")" )* ;
+call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 arguments      → expression ( "," expression )* ;
 primary        → NUMBER | STRING | "true" | "false" | "nil" | IDENTIFIER | "(" expression ")" ;
 
@@ -512,12 +512,25 @@ impl StatementsIterator {
         let mut expr = self.primary()?;
 
         loop {
-            if self.next_matches(TokenType::LeftParenthesis)?.is_some() {
-                if let Some(callee) = expr {
-                    expr = self.finish_call(callee)?;
+            match self.peek()? {
+                Some(token) if token.token_type == TokenType::LeftParenthesis => {
+                    self.consume(
+                        TokenType::LeftParenthesis,
+                        "Expect '(' when calling a function or a method",
+                    )?;
+                    if let Some(callee) = expr {
+                        expr = self.finish_call(callee)?;
+                    }
                 }
-            } else {
-                break;
+                Some(token) if token.token_type == TokenType::Dot && expr.is_some() => {
+                    self.consume(TokenType::Dot, "Expect '.' when calling a property")?;
+                    let name =
+                        self.consume(TokenType::Identifier, "Expect property name after '.'")?;
+                    if let Some(prop) = expr {
+                        expr = Some(Expr::Get(Rc::new(prop), name));
+                    }
+                }
+                _ => break,
             }
         }
 
@@ -735,6 +748,7 @@ pub enum Expr {
     Assignment(Token, Rc<Expr>),
     Function(Option<Token>, Function),
     Call(Rc<Expr>, Token, Box<Vec<Rc<Expr>>>),
+    Get(Rc<Expr>, Token),
 }
 
 impl Into<Statement> for Expr {
@@ -807,6 +821,9 @@ impl Display for Expr {
                     token.as_ref().map_or_else(|| "", |i| &i.lexeme),
                     fun
                 )
+            }
+            Get(prop, token) => {
+                write!(f, "property ")
             }
         }
     }

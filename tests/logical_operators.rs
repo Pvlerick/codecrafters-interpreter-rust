@@ -5,14 +5,14 @@ mod common;
 #[test]
 fn r#or_string_number() {
     let (output, err) = interpreter::run_content(r#"print "foo" or 2;"#);
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("foo\n", output);
 }
 
 #[test]
 fn r#or_nil_string() {
     let (output, err) = interpreter::run_content(r#"print nil or "bar";"#);
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("bar\n", output);
 }
 
@@ -23,7 +23,7 @@ fn r#if_or() {
     print 42;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("42\n", output);
 }
 
@@ -34,7 +34,7 @@ fn r#if_and_1() {
     print 42;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("", output);
 }
 
@@ -47,6 +47,6 @@ fn r#if_and_nil_number() {
     print 84;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("84\n", output);
 }

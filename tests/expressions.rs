@@ -37,7 +37,7 @@ print !false;
 "world" + "hello" + "foo" + "quz" == "worldhellofooquz";
 print !false;"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!(
         r#"true
 true

@@ -10,7 +10,7 @@ fn run_block() {
     print hello;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("baz\n", output);
 }
 
@@ -26,7 +26,7 @@ fn run_two_blocks() {
     print world;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!(
         r#"before
 after
@@ -47,7 +47,7 @@ fn run_block_scoped_variable() {
     print hello;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!(
         r#"88
 88
@@ -68,7 +68,7 @@ fn run_block_scoped_variable_and_assignment() {
     print foo;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!(
         r#"42
 88
@@ -85,7 +85,7 @@ fn run_block_var_scope_error() {
 }
 print foo;"#,
     );
-    assert!(err.is_some());
+    assert_some!(err);
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn run_block_unclosed_block() {
 "#,
     );
 
-    assert!(err.is_some());
+    assert_some!(err);
 }
 
 #[test]
@@ -114,5 +114,5 @@ fn run_block_assign_using_same_name_as_outer_variable() {
 print a;"#,
     );
     // See part 11.3.2 in the book
-    assert!(err.is_some());
+    assert_some!(err);
 }

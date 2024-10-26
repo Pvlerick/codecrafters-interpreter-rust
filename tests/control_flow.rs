@@ -5,14 +5,14 @@ mod common;
 #[test]
 fn r#if_true() {
     let (output, err) = interpreter::run_content("if (true) print 42;");
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("42\n", output);
 }
 
 #[test]
 fn r#if_false() {
     let (output, err) = interpreter::run_content("if (false) print 42;");
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("", output);
 }
 
@@ -22,7 +22,7 @@ fn r#if_using_variable() {
         r#"var foo = true;
 if (foo) print 42;"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("42\n", output);
 }
 
@@ -35,7 +35,7 @@ fn r#if_else_1() {
     print 84;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("42\n", output);
 }
 
@@ -48,7 +48,7 @@ fn r#if_else_2() {
     print 84;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("84\n", output);
 }
 
@@ -60,7 +60,7 @@ fn r#if_emtpy_else() {
 } else {
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("", output);
 }
 
@@ -71,7 +71,7 @@ fn r#while_add_print_total() {
 while (i < 3) i = i + 1;
 print i;"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("3\n", output);
 }
 
@@ -84,14 +84,14 @@ while (i < 3) {
     i = i + 1;
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("0\n1\n2\n", output);
 }
 
 #[test]
 fn r#for_print_in_loop() {
     let (output, err) = interpreter::run_content(r#"for (var i = 0; i < 10; i = i + 1) print i;"#);
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n", output);
 }
 
@@ -101,6 +101,6 @@ fn r#for_variable_init_outside() {
         r#"var i = 0;
 for (; i < 10; i = i + 1) print i;"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n", output);
 }

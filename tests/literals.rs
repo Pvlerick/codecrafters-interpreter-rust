@@ -77,13 +77,13 @@ fn parse_number() {
 #[test]
 fn evaluate_literal_string() {
     let (output, err) = interpreter::evaluate_content("\"foo\"");
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("foo", output);
 }
 
 #[test]
 fn evaluate_literal_numeric() {
     let (output, err) = interpreter::evaluate_content("42");
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("42", output);
 }

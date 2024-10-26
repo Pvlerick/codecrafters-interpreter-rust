@@ -16,20 +16,20 @@ fn static_scope() {
   showA();
 }"#,
     );
-    assert!(err.is_none());
+    assert_none!(err);
     assert_eq!("global\nglobal\n", output);
 }
 
 #[test]
 fn variable_self_in_initializer() {
     let (_, err) = interpreter::run_content("var a = a;");
-    assert!(err.is_some());
+    assert_some!(err);
 }
 
 #[test]
 fn return_at_top_level() {
     let (_, err) = interpreter::run_content("return \"at top level\";");
-    assert!(err.is_some());
+    assert_some!(err);
 }
 
 #[test]
@@ -40,5 +40,5 @@ fn multiple_variables_with_same_name_in_local_scope() {
   var a = 84;
 }",
     );
-    assert!(err.is_some());
+    assert_some!(err);
 }

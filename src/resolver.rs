@@ -105,6 +105,7 @@ impl Resolver {
 
     fn resolve_expression(&mut self, expr: Rc<Expr>) -> Result<(), InterpreterError> {
         match expr.deref() {
+            Expr::Get(expr, _) => self.resolve_expression(expr.clone()),
             Expr::Variable(ref token) => {
                 if self.scopes.last().map_or(false, |i| {
                     i.get(&token.lexeme).map(|i| !i.is_defined).unwrap_or(false)
