@@ -112,9 +112,19 @@ impl Interpreter {
         environment: &Environment<Type>,
     ) -> Result<StatementResult, InterpreterError> {
         match statement {
-            Statement::Class(token, _methods) => {
+            Statement::Class(token, methods_expressions) => {
                 environment.define(&token.lexeme, Type::Nil);
-                let class = LoxClass::new(token.lexeme.to_owned());
+                let mut methods = HashMap::new();
+                for method_expression in methods_expressions.iter().filter_map(|i| i.as_ref()) {
+                    let func = self.eval(environment, &method_expression)?;
+                    match func {
+                        Type::Function(ref f) => {
+                            methods.insert(f.name().to_owned(), func);
+                        }
+                        _ => todo!(),
+                    }
+                }
+                let class = LoxClass::new(token.lexeme.to_owned(), methods);
                 environment
                     .assign(&token.lexeme, Type::Class(Rc::new(class)))
                     .expect("should never fail");
@@ -341,7 +351,7 @@ impl Interpreter {
                         LoxInstance::new(class),
                     )))),
                     _ => Err(InterpreterError::evaluating(
-                        "Can only call functions and instances",
+                        "Can only call functions, instances and methods",
                         right_paren.line,
                     )),
                 }
@@ -434,6 +444,7 @@ trait Function: Debug + Display {
     ) -> Result<StatementResult, InterpreterError>;
 
     fn arity(&self) -> usize;
+    fn name(&self) -> &str;
 }
 
 struct LoxFunction {
@@ -490,6 +501,10 @@ impl Function for LoxFunction {
     fn arity(&self) -> usize {
         self.parameters.len()
     }
+
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
 }
 
 impl Display for LoxFunction {
@@ -534,6 +549,10 @@ mod native_functions {
                 ))),
             }
         }
+
+        fn name(&self) -> &str {
+            "clock"
+        }
     }
 
     impl Display for Clock {
@@ -567,6 +586,10 @@ mod native_functions {
                 ))),
             }
         }
+
+        fn name(&self) -> &str {
+            "env"
+        }
     }
 
     impl Display for Env {
@@ -577,28 +600,23 @@ mod native_functions {
 }
 
 trait Instance: Debug + Display {
-    #[allow(dead_code)]
-    fn call_method(
-        &self,
-        name: String,
-        interpreter: &mut Interpreter,
-        arguments: Vec<Type>,
-        line: usize,
-    ) -> Result<StatementResult, InterpreterError>;
-
     fn get(&self, name: &str) -> Type;
-    #[allow(dead_code)]
     fn set(&mut self, name: &str, value: Type);
 }
 
 #[derive(Debug, Clone)]
 struct LoxClass {
     name: String,
+    methods: HashMap<String, Type>,
 }
 
 impl LoxClass {
-    fn new(name: String) -> Self {
-        Self { name }
+    fn new(name: String, methods: HashMap<String, Type>) -> Self {
+        Self { name, methods }
+    }
+
+    fn find_method(&self, name: &str) -> Option<Type> {
+        self.methods.get(name).map(|i| i.clone())
     }
 }
 
@@ -624,20 +642,12 @@ impl LoxInstance {
 }
 
 impl Instance for LoxInstance {
-    fn call_method(
-        &self,
-        _name: String,
-        _interpreter: &mut Interpreter,
-        _arguments: Vec<Type>,
-        _line: usize,
-    ) -> Result<StatementResult, InterpreterError> {
-        Ok(StatementResult::Empty)
-    }
-
     fn get(&self, name: &str) -> Type {
-        self.fields
-            .get(name)
-            .map_or_else(|| Type::Nil, |i| i.clone())
+        match (self.fields.get(name), self.class.find_method(name)) {
+            (Some(value), _) => value.clone(),
+            (None, Some(method)) => method,
+            _ => Type::Nil,
+        }
     }
 
     fn set(&mut self, name: &str, value: Type) {
