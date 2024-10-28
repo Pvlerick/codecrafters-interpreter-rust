@@ -568,8 +568,9 @@ impl StatementsIterator {
             Ok(Some(token)) => {
                 use TokenType::*;
                 match token.token_type {
-                    Identifier => Ok(Some(Expr::variable(token))),
-                    False | True | Nil | Number | String => Ok(Some(Expr::literal(token))),
+                    This => Ok(Some(Expr::This(token))),
+                    Identifier => Ok(Some(Expr::Variable(token))),
+                    False | True | Nil | Number | String => Ok(Some(Expr::Literal(token))),
                     LeftParenthesis => match self.expression()? {
                         Some(expr) => {
                             if self.next_matches(RightParenthesis)?.is_some() {
@@ -753,6 +754,7 @@ pub enum Expr {
     Call(Rc<Expr>, Token, Box<Vec<Rc<Expr>>>),
     Get(Rc<Expr>, Token),
     Set(Rc<Expr>, Token, Rc<Expr>),
+    This(Token),
 }
 
 impl Into<Statement> for Expr {
@@ -770,19 +772,12 @@ impl Expr {
         Self::Grouping(Rc::new(expr))
     }
 
-    fn literal(token: Token) -> Self {
-        Self::Literal(token)
-    }
     fn logical(token: Token, left: Expr, right: Expr) -> Self {
         Self::Logical(token, Rc::new(left), Rc::new(right))
     }
 
     fn unary(token: Token, expr: Expr) -> Self {
         Self::Unary(token, Rc::new(expr))
-    }
-
-    fn variable(token: Token) -> Self {
-        Self::Variable(token)
     }
 
     fn assignment(token: Token, expr: Expr) -> Self {
@@ -832,6 +827,7 @@ impl Display for Expr {
             Set(instance, field, value) => {
                 write!(f, "(set {}.{}={})", instance, field, value)
             }
+            This(_) => write!(f, "this"),
         }
     }
 }

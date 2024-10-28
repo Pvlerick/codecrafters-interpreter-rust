@@ -45,6 +45,11 @@ impl Resolver {
             Statement::Class(token, methods) => {
                 self.declare(token)?;
                 self.define(token);
+
+                self.begin_scope();
+
+                self.declare_and_define_this();
+
                 for method in methods {
                     match method.as_deref() {
                         Some(Expr::Function(_, method)) => {
@@ -58,6 +63,9 @@ impl Resolver {
                         }
                     }
                 }
+
+                self.end_scope();
+
                 Ok(())
             }
             Statement::Block(statements) => {
@@ -105,6 +113,10 @@ impl Resolver {
 
     fn resolve_expression(&mut self, expr: Rc<Expr>) -> Result<(), InterpreterError> {
         match expr.deref() {
+            Expr::This(token) => {
+                self.resolve_local(expr.clone(), &token.lexeme);
+                Ok(())
+            }
             Expr::Set(instance, _, value) => {
                 self.resolve_expression(instance.clone())?;
                 self.resolve_expression(value.clone())
@@ -217,6 +229,14 @@ impl Resolver {
                 .and_modify(|i| i.mark_as_defined());
             None::<()>
         });
+    }
+
+    fn declare_and_define_this(&mut self) {
+        let mut this = Variable::new();
+        this.mark_as_defined();
+        self.scopes
+            .last_mut()
+            .and_then(|i| i.insert("this".to_owned(), this));
     }
 }
 

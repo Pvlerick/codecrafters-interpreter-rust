@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     cell::RefCell,
     collections::HashMap,
     error::Error,
@@ -50,8 +51,14 @@ impl Interpreter {
 
     fn new_global_environment() -> Environment<Type> {
         let env = Environment::<Type>::new();
-        env.define("clock", Type::Function(Rc::new(native_functions::Clock {})));
-        env.define("env", Type::Function(Rc::new(native_functions::Env {})));
+        env.define(
+            "clock",
+            Type::Function(Rc::new(RefCell::new(native_functions::Clock {}))),
+        );
+        env.define(
+            "env",
+            Type::Function(Rc::new(RefCell::new(native_functions::Env {}))),
+        );
         env
     }
 
@@ -119,7 +126,7 @@ impl Interpreter {
                     let func = self.eval(environment, &method_expression)?;
                     match func {
                         Type::Function(ref f) => {
-                            methods.insert(f.name().to_owned(), func);
+                            methods.insert(f.deref().borrow().name().to_owned(), func.clone());
                         }
                         _ => todo!(),
                     }
@@ -289,7 +296,7 @@ impl Interpreter {
                     token.line,
                 )),
             },
-            Expr::Variable(token) => {
+            Expr::Variable(token) | Expr::This(token) => {
                 let distance = self
                     .resolve_table
                     .as_ref()
@@ -328,6 +335,7 @@ impl Interpreter {
 
                 match callee {
                     Type::Function(func) => {
+                        let func = func.deref().borrow();
                         if args.len() != func.arity() {
                             return InterpreterError::evaluating(
                                 format!(
@@ -340,33 +348,33 @@ impl Interpreter {
                             )
                             .into();
                         }
-                        match func.call(self, args, right_paren.line)? {
+                        match func.borrow().call(self, args, right_paren.line)? {
                             StatementResult::Empty | StatementResult::Return(Type::Nil) => {
                                 Ok(Type::Nil)
                             }
                             StatementResult::Return(t) => Ok(t),
                         }
                     }
-                    Type::Class(class) => Ok(Type::Instance(Rc::new(RefCell::new(
-                        LoxInstance::new(class),
-                    )))),
+                    Type::Class(class) => Ok(Type::Instance(LoxInstance::new(class))),
                     _ => Err(InterpreterError::evaluating(
                         "Can only call functions, instances and methods",
                         right_paren.line,
                     )),
                 }
             }
-            Expr::Function(token, fun) => Ok(Type::Function(Rc::new(LoxFunction::new(
-                token.as_ref().map(|i| i.lexeme.to_owned()),
-                fun.parameters
-                    .iter()
-                    .map(|i| i.lexeme.to_string())
-                    .collect(),
-                fun.body.clone(),
-                environment.clone(),
-            )))),
+            Expr::Function(token, fun) => {
+                Ok(Type::Function(Rc::new(RefCell::new(LoxFunction::new(
+                    token.as_ref().map(|i| i.lexeme.to_owned()),
+                    fun.parameters
+                        .iter()
+                        .map(|i| i.lexeme.to_string())
+                        .collect(),
+                    fun.body.clone(),
+                    environment.clone(),
+                )))))
+            }
             Expr::Get(expr, token) => match self.eval(environment, expr)? {
-                Type::Instance(instance) => Ok(instance.borrow().get(&token.lexeme)),
+                Type::Instance(instance) => Ok(instance.deref().borrow().get(&token.lexeme)),
                 _ => Err(InterpreterError::evaluating(
                     "Only instances have properties",
                     token.line,
@@ -379,7 +387,7 @@ impl Interpreter {
                         Ok(Type::Nil)
                     }
                     _ => Err(InterpreterError::evaluating(
-                        "Only instances have properties",
+                        "Can only set properties on instances",
                         token.line,
                     )),
                 }
@@ -407,7 +415,7 @@ enum Type {
     Boolean(bool),
     Number(f64),
     String(Rc<String>),
-    Function(Rc<dyn Function>),
+    Function(Rc<RefCell<dyn Function>>),
     Class(Rc<LoxClass>),
     Instance(Rc<RefCell<dyn Instance>>),
 }
@@ -419,9 +427,9 @@ impl Display for Type {
             Type::Number(n) => write!(f, "{}", n),
             Type::String(s) => write!(f, "{}", s),
             Type::Boolean(b) => write!(f, "{}", b),
-            Type::Function(fun) => write!(f, "{}", fun),
+            Type::Function(fun) => write!(f, "{}", fun.deref().borrow()),
             Type::Class(class) => write!(f, "{}", class),
-            Type::Instance(instance) => write!(f, "{}", instance.borrow()),
+            Type::Instance(instance) => write!(f, "{}", instance.deref().borrow()),
         }
     }
 }
@@ -445,6 +453,7 @@ trait Function: Debug + Display {
 
     fn arity(&self) -> usize;
     fn name(&self) -> &str;
+    fn bind(&mut self, this: Option<Rc<RefCell<dyn Instance>>>);
 }
 
 struct LoxFunction {
@@ -505,6 +514,14 @@ impl Function for LoxFunction {
     fn name(&self) -> &str {
         self.name.as_str()
     }
+
+    fn bind(&mut self, this: Option<Rc<RefCell<dyn Instance>>>) {
+        if this.is_some() {
+            let env = Environment::enclose(&self.closure);
+            env.define("this", Type::Instance(this.unwrap()));
+            self.closure = env;
+        }
+    }
 }
 
 impl Display for LoxFunction {
@@ -553,6 +570,8 @@ mod native_functions {
         fn name(&self) -> &str {
             "clock"
         }
+
+        fn bind(&mut self, _: Option<Rc<std::cell::RefCell<dyn super::Instance>>>) {}
     }
 
     impl Display for Clock {
@@ -590,6 +609,8 @@ mod native_functions {
         fn name(&self) -> &str {
             "env"
         }
+
+        fn bind(&mut self, _: Option<Rc<std::cell::RefCell<dyn super::Instance>>>) {}
     }
 
     impl Display for Env {
@@ -630,14 +651,19 @@ impl Display for LoxClass {
 struct LoxInstance {
     class: Rc<LoxClass>,
     fields: HashMap<String, Type>,
+    this: Option<Rc<RefCell<dyn Instance>>>,
 }
 
 impl LoxInstance {
-    fn new(class: Rc<LoxClass>) -> Self {
-        Self {
+    fn new(class: Rc<LoxClass>) -> Rc<RefCell<Self>> {
+        let instance = Self {
             class: class.clone(),
             fields: HashMap::new(),
-        }
+            this: None,
+        };
+        let instance = Rc::new(RefCell::new(instance));
+        instance.deref().borrow_mut().this = Some(instance.clone());
+        instance
     }
 }
 
@@ -645,7 +671,10 @@ impl Instance for LoxInstance {
     fn get(&self, name: &str) -> Type {
         match (self.fields.get(name), self.class.find_method(name)) {
             (Some(value), _) => value.clone(),
-            (None, Some(method)) => method,
+            (None, Some(Type::Function(function))) => {
+                function.deref().borrow_mut().bind(self.this.clone());
+                return Type::Function(function);
+            }
             _ => Type::Nil,
         }
     }

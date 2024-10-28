@@ -157,6 +157,24 @@ greet("bar");"#,
 }
 
 #[test]
+fn this() {
+    let (output, err) = interpreter::run_content(
+        r#"class Person {
+    sayName() {
+        print this.name;
+    }
+}
+
+var jane = Person();
+jane.name = "Jane";
+
+jane.sayName();"#,
+    );
+    assert_none!(err);
+    assert_eq!("Jane\n", output);
+}
+
+#[test]
 fn method_as_variable_remembers_this_1() {
     let (output, err) = interpreter::run_content(
         r#"class Person {
@@ -172,7 +190,7 @@ var method = jane.sayName;
 method();"#,
     );
     assert_none!(err);
-    assert_eq!("Janex\n", output);
+    assert_eq!("Jane\n", output);
 }
 
 #[test]
@@ -194,5 +212,21 @@ bill.sayName = jane.sayName;
 bill.sayName();"#,
     );
     assert_none!(err);
-    assert_eq!("Janex\n", output);
+    assert_eq!("Jane\n", output);
+}
+
+#[test]
+fn invalid_use_of_this_1() {
+    let (_, err) = interpreter::run_content("print this;");
+    assert_some!(err);
+}
+
+#[test]
+fn invalid_use_of_this_2() {
+    let (_, err) = interpreter::run_content(
+        r#"fun notAMethod() {
+print this;
+}"#,
+    );
+    assert_some!(err);
 }
