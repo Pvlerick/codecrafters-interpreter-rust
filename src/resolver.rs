@@ -18,8 +18,14 @@ enum FunctionType {
     Method,
 }
 
+#[derive(Debug)]
+enum ClassType {
+    Class,
+}
+
 pub struct Resolver {
     scopes: Vec<HashMap<String, Variable>>,
+    current_class: Option<ClassType>,
     current_function: Option<FunctionType>,
     pub resolve_table: HashMap<HashableExpr, usize>,
 }
@@ -28,6 +34,7 @@ impl Resolver {
     pub fn new() -> Self {
         Self {
             scopes: Vec::new(),
+            current_class: None,
             current_function: None,
             resolve_table: HashMap::new(),
         }
@@ -43,10 +50,13 @@ impl Resolver {
     fn resolve_statement(&mut self, statement: &Statement) -> Result<(), InterpreterError> {
         match statement {
             Statement::Class(token, methods) => {
+                self.begin_scope();
+
+                let enclosing_class = self.current_class.take();
+                self.current_class = Some(ClassType::Class);
+
                 self.declare(token)?;
                 self.define(token);
-
-                self.begin_scope();
 
                 self.declare_and_define_this();
 
@@ -65,6 +75,8 @@ impl Resolver {
                 }
 
                 self.end_scope();
+
+                self.current_class = enclosing_class;
 
                 Ok(())
             }
@@ -114,6 +126,13 @@ impl Resolver {
     fn resolve_expression(&mut self, expr: Rc<Expr>) -> Result<(), InterpreterError> {
         match expr.deref() {
             Expr::This(token) => {
+                if self.current_class.is_none() {
+                    return Err(InterpreterError::resolving(
+                        "Can't use this outside of a class",
+                        None,
+                    ));
+                }
+
                 self.resolve_local(expr.clone(), &token.lexeme);
                 Ok(())
             }
@@ -174,14 +193,19 @@ impl Resolver {
         function_type: FunctionType,
     ) -> Result<(), InterpreterError> {
         self.begin_scope();
+
         let enclosing_function = self.current_function.take();
         self.current_function = Some(function_type);
+
         for param in function.parameters.iter() {
             self.declare(&param)?;
             self.define(&param);
         }
+
         self.resolve_statement(&function.body)?;
+
         self.end_scope();
+
         self.current_function = enclosing_function;
         Ok(())
     }
