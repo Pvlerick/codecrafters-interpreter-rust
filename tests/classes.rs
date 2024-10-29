@@ -291,3 +291,26 @@ var foo = Foo();"#,
     );
     assert_some!(err);
 }
+
+#[test]
+fn init_return_3() {
+    let (output, err) = interpreter::run_content(
+        r#"class Foo {
+    init() {
+        if (true) {
+            return;
+        }
+        print "Foo";
+    }
+
+    bar() {
+        print "Foo.bar";
+    }
+}
+
+var foo = Foo();
+foo.bar();"#,
+    );
+    assert_none!(err);
+    assert_eq!("Foo.bar\n", output);
+}
