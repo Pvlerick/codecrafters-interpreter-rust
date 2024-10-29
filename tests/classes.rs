@@ -230,3 +230,64 @@ print this;
     );
     assert_some!(err);
 }
+
+#[test]
+fn init() {
+    let (output, err) = interpreter::run_content(
+        r#"class Person {
+    init(firstName) {
+        this.firstName = firstName;
+        this.lastName = "Doe";
+    }
+}
+
+var p = Person("Jane");
+print p.firstName + " " + p.lastName;"#,
+    );
+    assert_none!(err);
+    assert_eq!("Jane Doe\n", output);
+}
+
+#[test]
+fn init_called_directly() {
+    let (output, err) = interpreter::run_content(
+        r#"class Foo {
+    init() {
+        print this;
+    }
+}
+
+var foo = Foo();
+print foo.init();"#,
+    );
+    assert_none!(err);
+    assert_eq!("Foo instance\nFoo instance\nnil\n", output);
+}
+
+#[test]
+fn init_return_1() {
+    let (_, err) = interpreter::run_content(
+        r#"class Foo {
+    init() {
+        return;
+    }
+}
+
+var foo = Foo();"#,
+    );
+    assert_none!(err);
+}
+
+#[test]
+fn init_return_2() {
+    let (_, err) = interpreter::run_content(
+        r#"class Foo {
+    init() {
+        return "hello";
+    }
+}
+
+var foo = Foo();"#,
+    );
+    assert_some!(err);
+}

@@ -3,7 +3,7 @@ macro_rules! assert_none {
     ( $option:expr ) => {
         if $option.is_some() {
             dbg!(&$option);
-            panic!("{} is some", stringify!(&option));
+            panic!("{} is some", stringify!($option));
         }
     };
 }

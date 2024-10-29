@@ -16,6 +16,7 @@ use crate::{
 enum FunctionType {
     Function,
     Method,
+    Initializer,
 }
 
 #[derive(Debug)]
@@ -62,6 +63,9 @@ impl Resolver {
 
                 for method in methods {
                     match method.as_deref() {
+                        Some(Expr::Function(Some(token), method)) if token.lexeme == "init" => {
+                            self.resolve_function(method, FunctionType::Initializer)?
+                        }
                         Some(Expr::Function(_, method)) => {
                             self.resolve_function(method, FunctionType::Method)?
                         }
@@ -104,18 +108,18 @@ impl Resolver {
                 Ok(())
             }
             Statement::Print(expr) => self.resolve_expression(expr.clone()),
-            Statement::Return(expr) => {
-                if self.current_function.is_none() {
-                    return Err(InterpreterError::resolving(
-                        "Can't return from top level code",
-                        None,
-                    ));
-                }
-                match expr {
-                    Some(expr) => self.resolve_expression(expr.clone()),
-                    None => Ok(()),
-                }
-            }
+            Statement::Return(expr) => match (&self.current_function, expr) {
+                (Some(FunctionType::Initializer), Some(_)) => Err(InterpreterError::resolving(
+                    "Can't return a value from an initializer",
+                    None,
+                )),
+                (Some(_), Some(expr)) => self.resolve_expression(expr.clone()),
+                (Some(_), None) => Ok(()),
+                (None, _) => Err(InterpreterError::resolving(
+                    "Can't return from top level code",
+                    None,
+                )),
+            },
             Statement::While(condition, body) => {
                 self.resolve_expression(condition.clone())?;
                 self.resolve_statement(body)

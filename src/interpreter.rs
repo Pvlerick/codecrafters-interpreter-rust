@@ -355,7 +355,16 @@ impl Interpreter {
                             StatementResult::Return(t) => Ok(t),
                         }
                     }
-                    Type::Class(class) => Ok(Type::Instance(LoxInstance::new(class))),
+                    Type::Class(class) => {
+                        let instance = LoxInstance::new(class.clone());
+                        if let Some(Type::Function(ctor)) = class.deref().find_method("init") {
+                            ctor.deref().borrow_mut().bind(Some(instance.clone()));
+                            ctor.deref()
+                                .borrow_mut()
+                                .call(self, args, right_paren.line)?;
+                        }
+                        Ok(Type::Instance(instance))
+                    }
                     _ => Err(InterpreterError::evaluating(
                         "Can only call functions, instances and methods",
                         right_paren.line,
@@ -380,9 +389,12 @@ impl Interpreter {
                     token.line,
                 )),
             },
-            Expr::Set(expr, token, value) => {
-                match (self.eval(environment, expr)?, self.eval(environment, value)) {
-                    (Type::Instance(instance), Ok(value)) => {
+            Expr::Set(name, token, value) => {
+                match (
+                    self.eval(environment, name)?,
+                    self.eval(environment, value)?,
+                ) {
+                    (Type::Instance(instance), value) => {
                         instance.borrow_mut().set(&token.lexeme, value);
                         Ok(Type::Nil)
                     }
