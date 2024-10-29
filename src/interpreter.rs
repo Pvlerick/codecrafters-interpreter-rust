@@ -119,8 +119,8 @@ impl Interpreter {
         environment: &Environment<Type>,
     ) -> Result<StatementResult, InterpreterError> {
         match statement {
-            Statement::Class(token, methods_expressions) => {
-                environment.define(&token.lexeme, Type::Nil);
+            Statement::Class(name, methods_expressions, super_class) => {
+                environment.define(&name.lexeme, Type::Nil);
                 let mut methods = HashMap::new();
                 for method_expression in methods_expressions.iter().filter_map(|i| i.as_ref()) {
                     let func = self.eval(environment, &method_expression)?;
@@ -128,12 +128,35 @@ impl Interpreter {
                         Type::Function(ref f) => {
                             methods.insert(f.deref().borrow().name().to_owned(), func.clone());
                         }
-                        _ => todo!(),
+                        _ => {
+                            return Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                                "class can only contain functions",
+                                Some(name.line),
+                            )))
+                        }
                     }
                 }
-                let class = LoxClass::new(token.lexeme.to_owned(), methods);
+                let class = match super_class {
+                    Some(super_class) => {
+                        let super_class = self.eval(environment, super_class)?;
+                        match super_class {
+                            Type::Class(super_class) => LoxClass::with_superclass(
+                                name.lexeme.to_owned(),
+                                methods,
+                                super_class,
+                            ),
+                            _ => {
+                                return Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                                    "super class must be a class type",
+                                    Some(name.line),
+                                )))
+                            }
+                        }
+                    }
+                    None => LoxClass::new(name.lexeme.to_owned(), methods),
+                };
                 environment
-                    .assign(&token.lexeme, Type::Class(Rc::new(class)))
+                    .assign(&name.lexeme, Type::Class(Rc::new(class)))
                     .expect("should never fail");
                 Ok(StatementResult::Empty)
             }
@@ -641,15 +664,39 @@ trait Instance: Debug + Display {
 struct LoxClass {
     name: String,
     methods: HashMap<String, Type>,
+    super_class: Option<Rc<LoxClass>>,
 }
 
 impl LoxClass {
     fn new(name: String, methods: HashMap<String, Type>) -> Self {
-        Self { name, methods }
+        Self {
+            name,
+            methods,
+            super_class: None,
+        }
+    }
+
+    fn with_superclass(
+        name: String,
+        methods: HashMap<String, Type>,
+        super_class: Rc<LoxClass>,
+    ) -> Self {
+        Self {
+            name,
+            methods,
+            super_class: Some(super_class),
+        }
     }
 
     fn find_method(&self, name: &str) -> Option<Type> {
-        self.methods.get(name).map(|i| i.clone())
+        if let Some(method) = self.methods.get(name) {
+            return Some(method.clone());
+        } else {
+            self.super_class
+                .as_ref()
+                .map(|i| i.find_method(name))
+                .flatten()
+        }
     }
 }
 

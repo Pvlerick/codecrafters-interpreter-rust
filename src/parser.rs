@@ -9,7 +9,7 @@ use crate::{
 
 program        → declaration* EOF ;
 declaration    → classDecl | funcDecl | varDecl | statement ;
-classDecl      → "class" IDENTIFIER "{" function* "}" ;
+classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER )? "{" function* "}" ;
 funcDecl       → "fun" function ;
 function       → IDENTIFIER "(" parameters? ")" block ;
 parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
@@ -211,7 +211,15 @@ impl StatementsIterator {
 
     fn class_declaration(&mut self) -> Result<Statement, ()> {
         self.consume(TokenType::Class, "Expect 'class' before class body")?;
-        let token = self.consume(TokenType::Identifier, "Expect class name")?;
+        let name = self.consume(TokenType::Identifier, "Expect class name")?;
+
+        let mut super_class = None;
+        if self.next_matches(TokenType::Less)?.is_some() {
+            super_class = Some(Rc::new(Expr::Variable(
+                self.consume(TokenType::Identifier, "Expect superclass name")?,
+            )));
+        }
+
         self.consume(TokenType::LeftBrace, "Expect '{' before class body")?;
 
         let mut methods = Vec::new();
@@ -221,7 +229,7 @@ impl StatementsIterator {
 
         self.consume(TokenType::RightBrace, "Expect '}' after class body")?;
 
-        Ok(Statement::Class(token, methods))
+        Ok(Statement::Class(name, methods, super_class))
     }
 
     fn function(&mut self, kind: FunctionKind) -> Result<Option<Expr>, ()> {
@@ -700,7 +708,7 @@ impl Display for Function {
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    Class(Token, Vec<Option<Rc<Expr>>>),
+    Class(Token, Vec<Option<Rc<Expr>>>, Option<Rc<Expr>>),
     Variable(Token, Option<Rc<Expr>>),
     Print(Rc<Expr>),
     Return(Option<Rc<Expr>>),
@@ -736,7 +744,13 @@ impl Display for Statement {
                 )
             }
             While(condition, body) => write!(f, "while {} then {}", condition, body),
-            Class(name, _) => write!(f, "class {}{{...}}", name),
+            Class(name, _, super_class) => {
+                write!(f, "class {}", name)?;
+                if let Some(super_class) = super_class {
+                    write!(f, " < {}", super_class)?;
+                }
+                write!(f, " {{...}}")
+            }
         }
     }
 }

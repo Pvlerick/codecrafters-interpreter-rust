@@ -50,14 +50,34 @@ impl Resolver {
 
     fn resolve_statement(&mut self, statement: &Statement) -> Result<(), InterpreterError> {
         match statement {
-            Statement::Class(token, methods) => {
+            Statement::Class(name, methods, super_class) => {
+                if let Some(super_class) = super_class {
+                    match super_class.deref() {
+                        Expr::Variable(super_class) if super_class.lexeme == name.lexeme => {
+                            return Err(InterpreterError::resolving(
+                                "A class can't inherit from itself",
+                                Some(name.line),
+                            ));
+                        }
+                        Expr::Variable(_) => {}
+                        _ => {
+                            return Err(InterpreterError::resolving(
+                                "A class can only inherit from a valid identifier",
+                                Some(name.line),
+                            ));
+                        }
+                    }
+
+                    self.resolve_expression(super_class.clone())?;
+                }
+
                 self.begin_scope();
 
                 let enclosing_class = self.current_class.take();
                 self.current_class = Some(ClassType::Class);
 
-                self.declare(token)?;
-                self.define(token);
+                self.declare(name)?;
+                self.define(name);
 
                 self.declare_and_define_this();
 
@@ -72,7 +92,7 @@ impl Resolver {
                         _ => {
                             return Err(InterpreterError::resolving(
                                 "expression is not a method",
-                                Some(token.line),
+                                Some(name.line),
                             ))
                         }
                     }
@@ -90,12 +110,12 @@ impl Resolver {
                 self.end_scope();
                 Ok(())
             }
-            Statement::Variable(token, initializer) => {
-                self.declare(&token)?;
+            Statement::Variable(name, initializer) => {
+                self.declare(&name)?;
                 if let Some(initializer) = initializer {
                     self.resolve_expression(initializer.clone())?;
                 }
-                self.define(&token);
+                self.define(&name);
                 Ok(())
             }
             Statement::Expression(expr) => self.resolve_expression(expr.clone()),
