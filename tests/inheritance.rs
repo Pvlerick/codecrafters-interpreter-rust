@@ -150,7 +150,7 @@ foo();"#,
 #[test]
 fn super_in_class_without_superclass() {
     let (_, err) = interpreter::run_content(
-        r#"class C() {
+        r#"class C {
     bar() {
         super.foo();
     }

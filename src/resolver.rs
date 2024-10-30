@@ -22,6 +22,7 @@ enum FunctionType {
 #[derive(Debug)]
 enum ClassType {
     Class,
+    SubClass,
 }
 
 pub struct Resolver {
@@ -51,6 +52,8 @@ impl Resolver {
     fn resolve_statement(&mut self, statement: &Statement) -> Result<(), InterpreterError> {
         match statement {
             Statement::Class(name, methods, super_class) => {
+                let enclosing_class = self.current_class.take();
+
                 if let Some(super_class) = super_class {
                     match super_class.deref() {
                         Expr::Variable(super_class) if super_class.lexeme == name.lexeme => {
@@ -71,14 +74,14 @@ impl Resolver {
                     self.resolve_expression(super_class.clone())?;
 
                     self.begin_scope();
-
                     self.declare_and_define("super");
+
+                    self.current_class = Some(ClassType::SubClass);
+                } else {
+                    self.current_class = Some(ClassType::Class);
                 }
 
                 self.begin_scope();
-
-                let enclosing_class = self.current_class.take();
-                self.current_class = Some(ClassType::Class);
 
                 self.declare(name)?;
                 self.define(name);
@@ -157,10 +160,24 @@ impl Resolver {
 
     fn resolve_expression(&mut self, expr: Rc<Expr>) -> Result<(), InterpreterError> {
         match expr.deref() {
-            Expr::This(token) | Expr::Super(token, _) => {
+            Expr::Super(token, _) => match self.current_class {
+                Some(ClassType::SubClass) => {
+                    self.resolve_local(expr.clone(), &token.lexeme);
+                    Ok(())
+                }
+                Some(ClassType::Class) => Err(InterpreterError::resolving(
+                    "Can't use or 'super' in a class that has no super class",
+                    Some(token.line),
+                )),
+                None => Err(InterpreterError::resolving(
+                    "Can't use or 'super' outside of a class",
+                    Some(token.line),
+                )),
+            },
+            Expr::This(token) => {
                 if self.current_class.is_none() {
                     return Err(InterpreterError::resolving(
-                        "Can't use 'this' or 'super' outside of a class",
+                        "Can't use 'this' outside of a class",
                         Some(token.line),
                     ));
                 }

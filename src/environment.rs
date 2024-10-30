@@ -1,5 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
 
+#[allow(dead_code)]
 pub(crate) const MAX_PRINT_LEVEL: usize = 10;
 
 #[derive(Debug)]
@@ -42,6 +43,7 @@ where
         self.inner.borrow().get_at(key, distance)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn print_content(&self) {
         self.inner.borrow().print_content(MAX_PRINT_LEVEL);
     }
