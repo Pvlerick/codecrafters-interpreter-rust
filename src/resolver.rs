@@ -69,6 +69,10 @@ impl Resolver {
                     }
 
                     self.resolve_expression(super_class.clone())?;
+
+                    self.begin_scope();
+
+                    self.declare_and_define("super");
                 }
 
                 self.begin_scope();
@@ -79,7 +83,7 @@ impl Resolver {
                 self.declare(name)?;
                 self.define(name);
 
-                self.declare_and_define_this();
+                self.declare_and_define("this");
 
                 for method in methods {
                     match method.as_deref() {
@@ -99,6 +103,10 @@ impl Resolver {
                 }
 
                 self.end_scope();
+
+                if super_class.is_some() {
+                    self.end_scope();
+                }
 
                 self.current_class = enclosing_class;
 
@@ -149,11 +157,11 @@ impl Resolver {
 
     fn resolve_expression(&mut self, expr: Rc<Expr>) -> Result<(), InterpreterError> {
         match expr.deref() {
-            Expr::This(token) => {
+            Expr::This(token) | Expr::Super(token, _) => {
                 if self.current_class.is_none() {
                     return Err(InterpreterError::resolving(
-                        "Can't use this outside of a class",
-                        None,
+                        "Can't use 'this' or 'super' outside of a class",
+                        Some(token.line),
                     ));
                 }
 
@@ -279,12 +287,12 @@ impl Resolver {
         });
     }
 
-    fn declare_and_define_this(&mut self) {
-        let mut this = Variable::new();
-        this.mark_as_defined();
+    fn declare_and_define(&mut self, name: &str) {
+        let mut variable = Variable::new();
+        variable.mark_as_defined();
         self.scopes
             .last_mut()
-            .and_then(|i| i.insert("this".to_owned(), this));
+            .and_then(|i| i.insert(name.to_owned(), variable));
     }
 }
 

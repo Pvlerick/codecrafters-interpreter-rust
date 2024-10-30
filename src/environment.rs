@@ -1,16 +1,18 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fmt::Display, rc::Rc};
+
+pub(crate) const MAX_PRINT_LEVEL: usize = 10;
 
 #[derive(Debug)]
 pub struct Environment<T>
 where
-    T: Clone,
+    T: Clone + Display,
 {
     inner: Rc<RefCell<Inner<T>>>,
 }
 
 impl<T> Environment<T>
 where
-    T: Clone,
+    T: Clone + Display,
 {
     pub fn new() -> Self {
         Self {
@@ -39,11 +41,15 @@ where
     pub fn get_at<K: ToString>(&self, key: K, distance: usize) -> Option<T> {
         self.inner.borrow().get_at(key, distance)
     }
+
+    pub(crate) fn print_content(&self) {
+        self.inner.borrow().print_content(MAX_PRINT_LEVEL);
+    }
 }
 
 impl<T> Clone for Environment<T>
 where
-    T: Clone,
+    T: Clone + Display,
 {
     fn clone(&self) -> Self {
         Self {
@@ -55,7 +61,7 @@ where
 #[derive(Debug)]
 struct Inner<T>
 where
-    T: Clone,
+    T: Clone + Display,
 {
     enclosing: Option<Rc<RefCell<Inner<T>>>>,
     values: HashMap<String, T>,
@@ -63,7 +69,7 @@ where
 
 impl<T> Inner<T>
 where
-    T: Clone,
+    T: Clone + Display,
 {
     fn new() -> Self {
         Self {
@@ -115,6 +121,18 @@ where
         match &self.enclosing {
             Some(inner) => inner.borrow().get_at(key_s, distance - 1),
             None => None,
+        }
+    }
+
+    fn print_content(&self, level: usize) {
+        match (level, &self.enclosing) {
+            (1.., Some(e)) => {
+                for item in self.values.iter() {
+                    println!("{}: {}={}", (MAX_PRINT_LEVEL - level), item.0, item.1);
+                }
+                e.borrow().print_content(level - 1);
+            }
+            _ => return,
         }
     }
 }

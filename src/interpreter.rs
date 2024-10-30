@@ -121,9 +121,19 @@ impl Interpreter {
         match statement {
             Statement::Class(name, methods_expressions, super_class) => {
                 environment.define(&name.lexeme, Type::Nil);
+
+                let mut env = environment.clone();
+
+                let super_class = if let Some(super_class) = super_class {
+                    env = environment.enclose();
+                    Some(self.eval(environment, super_class)?)
+                } else {
+                    None
+                };
+
                 let mut methods = HashMap::new();
                 for method_expression in methods_expressions.iter().filter_map(|i| i.as_ref()) {
-                    let func = self.eval(environment, &method_expression)?;
+                    let func = self.eval(&env, &method_expression)?;
                     match func {
                         Type::Function(ref f) => {
                             methods.insert(f.deref().borrow().name().to_owned(), func.clone());
@@ -136,28 +146,25 @@ impl Interpreter {
                         }
                     }
                 }
+
                 let class = match super_class {
-                    Some(super_class) => {
-                        let super_class = self.eval(environment, super_class)?;
-                        match super_class {
-                            Type::Class(super_class) => LoxClass::with_superclass(
-                                name.lexeme.to_owned(),
-                                methods,
-                                super_class,
-                            ),
-                            _ => {
-                                return Err(InterpreterError::InterpreterError(ErrorMessage::new(
-                                    "super class must be a class type",
-                                    Some(name.line),
-                                )))
-                            }
-                        }
+                    Some(Type::Class(super_class)) => {
+                        env.define("super", Type::Class(super_class.clone()));
+                        LoxClass::with_superclass(name.lexeme.to_owned(), methods, super_class)
+                    }
+                    Some(_) => {
+                        return Err(InterpreterError::InterpreterError(ErrorMessage::new(
+                            "super class must be a class type",
+                            Some(name.line),
+                        )))
                     }
                     None => LoxClass::new(name.lexeme.to_owned(), methods),
                 };
+
                 environment
                     .assign(&name.lexeme, Type::Class(Rc::new(class)))
                     .expect("should never fail");
+
                 Ok(StatementResult::Empty)
             }
             Statement::Return(expr) => Ok(match expr {
@@ -320,13 +327,9 @@ impl Interpreter {
                 )),
             },
             Expr::Variable(token) | Expr::This(token) => {
-                let distance = self
-                    .resolve_table
-                    .as_ref()
-                    .unwrap()
-                    .get(&HashableExpr::from(expression.clone()));
                 match (
-                    distance.and_then(|i| environment.get_at(&token.lexeme, *i)),
+                    self.get_distance(expression.clone())
+                        .and_then(|i| environment.get_at(&token.lexeme, *i)),
                     self.global_environment.get(&token.lexeme),
                 ) {
                     (Some(value), _) => Ok(value.clone()),
@@ -427,6 +430,31 @@ impl Interpreter {
                     )),
                 }
             }
+            Expr::Super(token, method) => {
+                match self.get_distance(expression.clone()).map(|i| {
+                    (
+                        environment.get_at(&token.lexeme, *i),
+                        environment.get_at("this", *i - 1),
+                    )
+                }) {
+                    Some((Some(Type::Class(super_class)), Some(this))) => {
+                        match (super_class.find_method(&method.lexeme), this) {
+                            (Some(Type::Function(fun)), Type::Instance(this)) => {
+                                fun.borrow_mut().bind(Some(this));
+                                Ok(Type::Function(fun))
+                            }
+                            _ => Err(InterpreterError::evaluating(
+                                format!("Method '{}' not found on the super class", &method.lexeme),
+                                method.line,
+                            )),
+                        }
+                    }
+                    _ => Err(InterpreterError::evaluating(
+                        format!("Undefined 'super' or '{}' in scope", method.lexeme),
+                        method.line,
+                    )),
+                }
+            }
         }
     }
 
@@ -436,6 +464,13 @@ impl Interpreter {
             Type::Boolean(b) => *b,
             _ => true,
         }
+    }
+
+    fn get_distance(&self, expr: Rc<Expr>) -> Option<&usize> {
+        self.resolve_table
+            .as_ref()
+            .unwrap()
+            .get(&HashableExpr::from(expr.clone()))
     }
 }
 
@@ -552,7 +587,7 @@ impl Function for LoxFunction {
 
     fn bind(&mut self, this: Option<Rc<RefCell<dyn Instance>>>) {
         if this.is_some() {
-            let env = Environment::enclose(&self.closure);
+            let env = self.closure.enclose();
             env.define("this", Type::Instance(this.unwrap()));
             self.closure = env;
         }

@@ -34,7 +34,7 @@ factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary | call ;
 call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 arguments      → expression ( "," expression )* ;
-primary        → NUMBER | STRING | "true" | "false" | "nil" | IDENTIFIER | "(" expression ")" ;
+primary        → NUMBER | STRING | "true" | "false" | "nil" | IDENTIFIER | "(" expression ")" | "super" "." IDENTIFIER ;
 
 */
 
@@ -590,6 +590,15 @@ impl StatementsIterator {
                         }
                         None => Ok(None),
                     },
+                    Super => {
+                        self.consume(TokenType::Dot, "Expect '.' after 'super'")?;
+                        if let Some(method) = self.next_matches(Identifier)? {
+                            return Ok(Some(Expr::Super(token, method)));
+                        } else {
+                            self.add_error("Expect superclass method name")?;
+                            Ok(None)
+                        }
+                    }
                     token_type => {
                         self.add_error(format!("Unexpected token: {}", token_type))?;
                         Ok(None)
@@ -769,6 +778,7 @@ pub enum Expr {
     Get(Rc<Expr>, Token),
     Set(Rc<Expr>, Token, Rc<Expr>),
     This(Token),
+    Super(Token, Token),
 }
 
 impl Into<Statement> for Expr {
@@ -842,6 +852,7 @@ impl Display for Expr {
                 write!(f, "(set {}.{}={})", instance, field, value)
             }
             This(_) => write!(f, "this"),
+            Super(_, method) => write!(f, "super.{}", method),
         }
     }
 }
