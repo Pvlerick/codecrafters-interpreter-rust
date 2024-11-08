@@ -57,7 +57,7 @@ impl Display for InterpreterError {
 
 #[derive(Debug)]
 pub struct ErrorMessage {
-    message: String,
+    pub message: String,
     line: Option<usize>,
 }
 

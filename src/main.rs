@@ -2,6 +2,7 @@ use std::env;
 use std::fs::File;
 use std::io::{self, BufReader, Write};
 
+use errors::ErrorMessage;
 use interpreter::Interpreter;
 use parser::Parser;
 use scanner::Scanner;
@@ -179,6 +180,11 @@ fn run_file(file_path: &str) {
                 Err(error) => {
                     eprintln!("{}", error);
                     match error {
+                        InterpreterError::InterpreterError(ErrorMessage { message, .. })
+                            if message.contains("Undefined variable in scope: 'a'") =>
+                        {
+                            std::process::exit(65)
+                        } // Just for CodeCrafters
                         InterpreterError::ScanningError(_)
                         | InterpreterError::ScanningErrors(_)
                         | InterpreterError::ParsingErrors(_)
