@@ -596,7 +596,7 @@ impl Function for LoxFunction {
 
 impl Display for LoxFunction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "fun {}({})", self.name, self.arity())
+        write!(f, "<fn {}>", self.name)
     }
 }
 
