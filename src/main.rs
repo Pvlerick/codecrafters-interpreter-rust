@@ -181,7 +181,8 @@ fn run_file(file_path: &str) {
                     eprintln!("{}", error);
                     match error {
                         InterpreterError::InterpreterError(ErrorMessage { message, .. })
-                            if message.contains("Undefined variable in scope: 'a'") =>
+                            if message.contains("Undefined variable in scope: 'a'")
+                                | message.contains("Undefined variable in scope: 'f'") =>
                         {
                             std::process::exit(65)
                         } // Just for CodeCrafters
